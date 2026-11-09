@@ -7,183 +7,244 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum Role {
-  MASYARAKAT
-  PETUGAS
-  ADMIN
+model aiconfiguration {
+  id             String   @id @default("default")
+  apiKey         String?  @db.Text
+  baseUrl        String   @default("https://integrate.api.nvidia.com/v1") @db.VarChar(512)
+  textModel      String   @default("meta/llama-3.2-11b-vision-instruct")
+  visionModel    String   @default("meta/llama-3.2-11b-vision-instruct")
+  updatedByEmail String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  textProvider   String   @default("nvidia") @db.VarChar(100)
+  textBaseUrl    String   @default("https://integrate.api.nvidia.com/v1") @db.VarChar(512)
+  textApiKey     String?  @db.Text
+  visionProvider String   @default("nvidia") @db.VarChar(100)
+  visionBaseUrl  String   @default("https://integrate.api.nvidia.com/v1") @db.VarChar(512)
+  visionApiKey   String?  @db.Text
+  provider       String   @default("nvidia") @db.VarChar(100)
 }
 
-enum LaporanStatus {
-  DRAFT
-  DITERIMA
+model aiconfigurationhistory {
+  id              String   @id @default(cuid())
+  textProvider    String   @db.VarChar(100)
+  textBaseUrl     String   @db.VarChar(512)
+  textModel       String
+  textKeyHash     String?  @db.VarChar(128)
+  textKeySource   String   @db.VarChar(50)
+  visionProvider  String   @db.VarChar(100)
+  visionBaseUrl   String   @db.VarChar(512)
+  visionModel     String
+  visionKeyHash   String?  @db.VarChar(128)
+  visionKeySource String   @db.VarChar(50)
+  provider        String   @db.VarChar(100)
+  baseUrl         String   @db.VarChar(512)
+  keyHash         String?  @db.VarChar(128)
+  keySource       String   @db.VarChar(50)
+  updatedByEmail  String?
+  isActive        Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  @@index([createdAt], map: "AIConfigurationHistory_createdAt_idx")
+  @@index([isActive], map: "AIConfigurationHistory_isActive_idx")
+}
+
+model notification {
+  id             String    @id @default(cuid())
+  userId         String
+  reportId       String
+  title          String
+  message        String    @db.Text
+  isRead         Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  telegramError  String?   @db.Text
+  telegramSent   Boolean?  @default(false)
+  telegramSentAt DateTime?
+  report         report    @relation(fields: [reportId], references: [id], onDelete: Cascade, map: "Notification_reportId_fkey")
+  user           user      @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Notification_userId_fkey")
+
+  @@index([reportId], map: "Notification_reportId_idx")
+  @@index([userId], map: "Notification_userId_idx")
+}
+
+model report {
+  id                String             @id @default(cuid())
+  reportNumber      String             @unique(map: "Report_reportNumber_key")
+  title             String
+  description       String             @db.Text
+  category          report_category
+  priority          report_priority
+  status            report_status      @default(DIAJUKAN)
+  latitude          Float?
+  longitude         Float?
+  address           String?            @db.Text
+  reporterId        String
+  assignedOfficerId String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  verifiedAt        DateTime?
+  completedAt       DateTime?
+  aiAnalyzedAt      DateTime?
+  aiCategory        report_aiCategory?
+  aiConfidence      Float?
+  aiPriority        report_aiPriority?
+  aiReason          String?            @db.Text
+  aiAutoRejected    Boolean?           @default(false)
+  aiDuplicateOfId   String?
+  aiDuplicateReason String?            @db.Text
+  aiIsDuplicate     Boolean?           @default(false)
+  aiRejectionReason String?            @db.Text
+  notification      notification[]
+  assignedOfficer   user?              @relation("ReportOfficer", fields: [assignedOfficerId], references: [id], map: "Report_assignedOfficerId_fkey")
+  reporter          user               @relation("ReportReporter", fields: [reporterId], references: [id], map: "Report_reporterId_fkey")
+  reporthistory     reporthistory[]
+  reportimage       reportimage[]
+
+  @@index([assignedOfficerId], map: "Report_assignedOfficerId_idx")
+  @@index([category], map: "Report_category_idx")
+  @@index([reporterId], map: "Report_reporterId_idx")
+  @@index([status], map: "Report_status_idx")
+}
+
+model reporthistory {
+  id        String                  @id @default(cuid())
+  reportId  String
+  userId    String
+  oldStatus reporthistory_oldStatus
+  newStatus reporthistory_newStatus
+  createdAt DateTime                @default(now())
+  notes     String?                 @db.Text
+  report    report                  @relation(fields: [reportId], references: [id], onDelete: Cascade, map: "ReportHistory_reportId_fkey")
+  user      user                    @relation(fields: [userId], references: [id], onDelete: Cascade, map: "ReportHistory_userId_fkey")
+
+  @@index([reportId], map: "ReportHistory_reportId_idx")
+  @@index([userId], map: "ReportHistory_userId_idx")
+}
+
+model reportimage {
+  id                String           @id @default(cuid())
+  reportId          String
+  imageUrl          String           @db.LongText
+  type              reportimage_type
+  createdAt         DateTime         @default(now())
+  aiDescription     String?          @db.Text
+  aiImageAnalyzedAt DateTime?
+  aiImageConfidence Float?
+  aiIsRelevant      Boolean?
+  aiPossibleDamage  String?          @db.Text
+  aiSeverity        String?
+  aiImageMatchTitle Boolean?
+  aiRejectionReason String?          @db.Text
+  report            report           @relation(fields: [reportId], references: [id], onDelete: Cascade, map: "ReportImage_reportId_fkey")
+
+  @@index([reportId], map: "ReportImage_reportId_idx")
+}
+
+model telegramlinktoken {
+  id        String    @id @default(cuid())
+  token     String    @unique(map: "TelegramLinkToken_token_key")
+  userId    String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  phone     String?
+  user      user      @relation(fields: [userId], references: [id], onDelete: Cascade, map: "TelegramLinkToken_userId_fkey")
+
+  @@index([expiresAt], map: "TelegramLinkToken_expiresAt_idx")
+  @@index([phone], map: "TelegramLinkToken_phone_idx")
+  @@index([userId], map: "TelegramLinkToken_userId_idx")
+}
+
+model user {
+  id               String              @id @default(cuid())
+  name             String?
+  email            String?             @unique(map: "User_email_key")
+  password         String?
+  role             user_role           @default(MASYARAKAT)
+  phone            String?
+  address          String?             @db.Text
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  telegramChatId   String?             @unique(map: "User_telegramChatId_key")
+  telegramEnabled  Boolean             @default(true)
+  telegramLinkedAt DateTime?
+  telegramUsername String?
+  phoneNormalized  String?             @unique(map: "User_phoneNormalized_key")
+  notification     notification[]
+  reportsAssigned  report[]            @relation("ReportOfficer")
+  reportsReported  report[]            @relation("ReportReporter")
+  reporthistory    reporthistory[]
+  telegramlinktoken telegramlinktoken[]
+
+  @@index([email], map: "User_email_idx")
+}
+
+enum reporthistory_oldStatus {
+  DIAJUKAN
+  DIVERIFIKASI
+  DITUGASKAN
   DIPROSES
   SELESAI
   DITOLAK
 }
 
-enum KategoriFasilitas {
+enum reportimage_type {
+  BEFORE
+  AFTER
+}
+
+enum report_category {
   JALAN
-  DRAINASE
-  PENERANGAN_JALAN
-  SARANA_PAMBERSIHAN
-  TPA
-  RUANG_PUBLIK
+  LAMPU_JALAN
+  SALURAN_AIR
+  JEMBATAN
+  FASILITAS_KESEHATAN
   LAINNYA
 }
 
-model User {
-  id            String    @id @default(uuid()) @db.Char(36)
-  name          String?
-  email         String?   @unique
-  emailVerified DateTime?
-  image         String?
-  password      String?
-  role          Role      @default(MASYARAKAT)
-  phone         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  accounts      Account[]
-  sessions      Session[]
-  laporan       Laporan[]
-  laporanSebagaiPetugas Laporan[] @relation("PetugasLaporan")
-  tanggapan     Tanggapan[]
-  notifikasi    Notifikasi[]
-  telegramLink  TelegramLink?
-
-  @@map("users")
+enum reporthistory_newStatus {
+  DIAJUKAN
+  DIVERIFIKASI
+  DITUGASKAN
+  DIPROSES
+  SELESAI
+  DITOLAK
 }
 
-model Account {
-  id                String  @id @default(uuid()) @db.Char(36)
-  userId            String  @db.Char(36)
-  type              String
-  provider          String
-  providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
-  expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String? @db.Text
-  session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([provider, providerAccountId])
-  @@map("accounts")
+enum user_role {
+  ADMIN
+  PETUGAS
+  MASYARAKAT
 }
 
-model Session {
-  id           String   @id @default(uuid()) @db.Char(36)
-  sessionToken String   @unique
-  userId       String   @db.Char(36)
-  expires      DateTime
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("sessions")
+enum report_priority {
+  RENDAH
+  SEDANG
+  TINGGI
+  DARURAT
 }
 
-model VerificationToken {
-  identifier String
-  token      String   @unique
-  expires    DateTime
-
-  @@unique([identifier, token])
-  @@map("verificationtokens")
+enum report_status {
+  DIAJUKAN
+  DIVERIFIKASI
+  DITUGASKAN
+  DIPROSES
+  SELESAI
+  DITOLAK
 }
 
-model KategoriFasilitasData {
-  id          String   @id @default(uuid()) @db.Char(36)
-  nama        String   @unique
-  deskripsi   String?
-  warna       String?  @default("#6B7280")
-  icon        String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  laporan Laporan[]
-
-  @@map("kategori_fasilitas")
+enum report_aiCategory {
+  JALAN
+  LAMPU_JALAN
+  SALURAN_AIR
+  JEMBATAN
+  FASILITAS_KESEHATAN
+  LAINNYA
 }
 
-model Laporan {
-  id          String            @id @default(uuid()) @db.Char(36)
-  judul       String
-  deskripsi   String?           @db.Text
-  lokasi      String            @db.Text
-  latitude    Float?
-  longitude   Float?
-  fotoUrl     String?
-  status      LaporanStatus     @default(DRAFT)
-  kategoriId  String?           @db.Char(36)
-  userId      String            @db.Char(36)
-  petugasId   String?           @db.Char(36)
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
-
-  kategori   KategoriFasilitasData? @relation(fields: [kategoriId], references: [id])
-  user       User                @relation(fields: [userId], references: [id])
-  petugas    User?               @relation("PetugasLaporan", fields: [petugasId], references: [id])
-  tanggapan  Tanggapan[]
-  notifikasi Notifikasi[]
-
-  @@map("laporan")
-}
-
-model Tanggapan {
-  id        String   @id @default(uuid()) @db.Char(36)
-  laporanId String   @db.Char(36)
-  petugasId String   @db.Char(36)
-  balasan   String   @db.Text
-  createdAt DateTime @default(now())
-
-  laporan Laporan @relation(fields: [laporanId], references: [id], onDelete: Cascade)
-  petugas User    @relation(fields: [petugasId], references: [id])
-
-  @@map("tanggapan")
-}
-
-model Notifikasi {
-  id        String   @id @default(uuid()) @db.Char(36)
-  userId    String   @db.Char(36)
-  laporanId String?  @db.Char(36)
-  judul     String
-  pesan     String   @db.Text
-  dibaca    Boolean  @default(false)
-  createdAt DateTime @default(now())
-
-  user     User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  laporan  Laporan? @relation(fields: [laporanId], references: [id], onDelete: SetNull)
-
-  @@map("notifikasi")
-}
-
-model AiConfig {
-  id                String   @id @default(uuid()) @db.Char(36)
-  provider          String   @default("openai-compatible")
-  baseUrl           String?  @db.Text
-  apiKey            String?  @db.Text
-  textModel         String?
-  visionModel       String?
-  isEnabled         Boolean  @default(true)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  @@map("ai_config")
-}
-
-model TelegramLink {
-  id        String   @id @default(uuid()) @db.Char(36)
-  userId    String   @unique @db.Char(36)
-  chatId    String?  @db.Text
-  token     String   @unique
-  isVerified Boolean @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("telegram_link")
+enum report_aiPriority {
+  RENDAH
+  SEDANG
+  TINGGI
+  DARURAT
 }
