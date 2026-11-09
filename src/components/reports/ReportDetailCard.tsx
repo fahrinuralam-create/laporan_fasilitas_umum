@@ -105,6 +105,113 @@ export default function ReportDetailCard({
         )}
       </div>
 
+      <div className="bg-white rounded-xl border border-zinc-200 shadow-sm p-6">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+          <h2 className="text-lg font-bold text-zinc-900">Analisis AI</h2>
+          {report.aiAnalyzedAt ? (
+            <span className="px-2.5 py-1 rounded-full text-xs font-medium border bg-indigo-100 text-indigo-700 border-indigo-200">
+              Keyakinan{" "}
+              {report.aiConfidence != null
+                ? `${Math.round(report.aiConfidence * 100)}%`
+                : "-"}
+            </span>
+          ) : (
+            <span className="px-2.5 py-1 rounded-full text-xs font-medium border bg-zinc-100 text-zinc-600 border-zinc-200">
+              Belum dianalisis
+            </span>
+          )}
+        </div>
+
+        {!report.aiAnalyzedAt && !report.aiIsDuplicate ? (
+          <p className="text-sm text-zinc-500">
+            Laporan ini belum memiliki hasil analisis AI. Admin dapat
+            menjalankan analisis dari panel aksi di halaman ini.
+          </p>
+        ) : (
+          <div className="space-y-4">
+            {report.aiAnalyzedAt && (
+              <>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <p className="text-zinc-500">Saran Kategori</p>
+                    <p className="font-medium text-zinc-900">
+                      {report.aiCategory
+                        ? categoryLabel(report.aiCategory)
+                        : "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-zinc-500">Saran Prioritas</p>
+                    <p className="font-medium text-zinc-900">
+                      {report.aiPriority
+                        ? priorityLabel(report.aiPriority)
+                        : "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-zinc-500">Keyakinan</p>
+                    <p className="font-medium text-zinc-900">
+                      {report.aiConfidence != null
+                        ? `${Math.round(report.aiConfidence * 100)}%`
+                        : "-"}
+                    </p>
+                  </div>
+                </div>
+
+                {report.aiReason && (
+                  <div>
+                    <p className="text-zinc-500 text-sm">Alasan AI</p>
+                    <p className="text-sm text-zinc-800">{report.aiReason}</p>
+                  </div>
+                )}
+              </>
+            )}
+
+            {report.aiIsDuplicate && (
+              <div className="p-4 rounded-lg bg-amber-50 border border-amber-200">
+                <p className="text-sm font-semibold text-amber-800">
+                  Kemungkinan Duplikat
+                </p>
+                <p className="text-sm text-amber-700 mt-1">
+                  {report.aiDuplicateReason ||
+                    "Laporan ini mirip dengan laporan sebelumnya."}
+                </p>
+              </div>
+            )}
+
+            {report.aiAutoRejected && (
+              <div className="p-4 rounded-lg bg-red-50 border border-red-200">
+                <p className="text-sm font-semibold text-red-700">
+                  Perlu Ditinjau
+                </p>
+                <p className="text-sm text-red-700 mt-1">
+                  {report.aiRejectionReason ||
+                    "AI menilai laporan/foto tidak relevan."}
+                </p>
+              </div>
+            )}
+
+            {beforeImages[0]?.aiImageAnalyzedAt && (
+              <div className="p-4 rounded-lg bg-zinc-50 border border-zinc-200 text-sm">
+                <p className="font-semibold text-zinc-800 mb-1">
+                  Analisis Foto
+                </p>
+                <p className="text-zinc-700">
+                  {beforeImages[0].aiPossibleDamage ||
+                    beforeImages[0].aiDescription ||
+                    "-"}
+                </p>
+                <p className="text-xs text-zinc-500 mt-2">
+                  Tingkat kerusakan: {beforeImages[0].aiSeverity || "-"} ·
+                  Relevan: {beforeImages[0].aiIsRelevant ? "Ya" : "Tidak"} ·
+                  Cocok judul: {beforeImages[0].aiImageMatchTitle ? "Ya" : "Tidak"}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       {beforeImages.length > 0 && (
         <div className="bg-white rounded-xl border border-zinc-200 shadow-sm p-6">
           <h2 className="text-lg font-bold text-zinc-900 mb-3">

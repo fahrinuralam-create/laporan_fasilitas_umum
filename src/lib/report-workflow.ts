@@ -1,5 +1,6 @@
 import { Prisma, report_status } from "@prisma/client";
 import prisma from "@/lib/prisma";
+import { deliverTelegramNotification } from "@/lib/telegram-notify";
 
 export type TransitionInput = {
   reportId: string;
@@ -25,7 +26,7 @@ export async function transitionReport(input: TransitionInput) {
     throw new Error("Laporan tidak ditemukan");
   }
 
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const updated = await tx.report.update({
       where: { id: input.reportId },
       data: {
@@ -44,7 +45,7 @@ export async function transitionReport(input: TransitionInput) {
       },
     });
 
-    await tx.notification.create({
+    const notification = await tx.notification.create({
       data: {
         userId: report.reporterId,
         reportId: input.reportId,
@@ -63,6 +64,12 @@ export async function transitionReport(input: TransitionInput) {
       });
     }
 
-    return updated;
+    return { updated, notificationId: notification.id };
   });
+
+  void deliverTelegramNotification(result.notificationId).catch((error) => {
+    console.error("Gagal mengirim notifikasi Telegram:", error);
+  });
+
+  return result.updated;
 }

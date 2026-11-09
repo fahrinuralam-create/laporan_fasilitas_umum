@@ -6,6 +6,8 @@ import {
   REPORT_CATEGORIES,
   REPORT_PRIORITIES,
 } from "@/lib/report-utils";
+import { analyzeReportById } from "@/lib/report-ai";
+import { deliverTelegramNotification } from "@/lib/telegram-notify";
 
 const CATEGORY_VALUES = REPORT_CATEGORIES.map((c) => c.value);
 const PRIORITY_VALUES = REPORT_PRIORITIES.map((p) => p.value);
@@ -136,7 +138,20 @@ export async function POST(request: NextRequest) {
         include: {
           reportimage: true,
           reporthistory: true,
+          notification: true,
         },
+      });
+
+      const notificationId = created.notification[0]?.id;
+      if (notificationId) {
+        void deliverTelegramNotification(notificationId).catch((error) => {
+          console.error("Gagal mengirim notifikasi Telegram:", error);
+        });
+      }
+
+      // Analisis AI berjalan di latar belakang agar pembuatan laporan tetap cepat.
+      void analyzeReportById(created.id).catch((error) => {
+        console.error("Analisis AI otomatis gagal:", error);
       });
 
       return NextResponse.json(created, { status: 201 });

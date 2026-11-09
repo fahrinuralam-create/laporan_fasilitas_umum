@@ -17,6 +17,7 @@ export default function AdminReportActions({
   const router = useRouter();
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [aiMessage, setAiMessage] = useState("");
   const [officerId, setOfficerId] = useState(officers[0]?.id ?? "");
   const [showReject, setShowReject] = useState(false);
   const [reason, setReason] = useState("");
@@ -47,9 +48,39 @@ export default function AdminReportActions({
   };
 
   const canAct = status === "DIAJUKAN" || status === "DIVERIFIKASI";
-  if (!canAct && !showReject) {
-    return null;
-  }
+
+  const analyze = async () => {
+    setPending("analyze");
+    setError("");
+    setAiMessage("");
+    try {
+      const res = await fetch(`/api/admin/reports/${reportId}/analyze`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Analisis AI gagal");
+        return;
+      }
+      const analysis = data.analysis;
+      const confidence =
+        analysis?.confidence != null
+          ? `${Math.round(analysis.confidence * 100)}%`
+          : "-";
+      setAiMessage(
+        `Analisis selesai: ${analysis?.category ?? "-"} / ${
+          analysis?.priority ?? "-"
+        } (${confidence})${
+          data.duplicate ? " · Kemungkinan duplikat terdeteksi" : ""
+        }.`
+      );
+      router.refresh();
+    } catch {
+      setError("Terjadi kesalahan saat analisis AI");
+    } finally {
+      setPending(null);
+    }
+  };
 
   return (
     <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
@@ -61,7 +92,21 @@ export default function AdminReportActions({
         </div>
       )}
 
+      {aiMessage && (
+        <div className="mb-3 p-2 rounded-md bg-indigo-50 border border-indigo-200 text-indigo-700 text-sm">
+          {aiMessage}
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-2">
+        <button
+          onClick={analyze}
+          disabled={pending !== null}
+          className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50 transition"
+        >
+          {pending === "analyze" ? "Menganalisis..." : "Analisis AI"}
+        </button>
+
         {status === "DIAJUKAN" && (
           <button
             onClick={() => run("verify")}
@@ -99,7 +144,7 @@ export default function AdminReportActions({
           </div>
         )}
 
-        {(status === "DIAJUKAN" || status === "DIVERIFIKASI") && (
+        {canAct && (
           <button
             onClick={() => setShowReject((v) => !v)}
             disabled={pending !== null}
@@ -110,7 +155,7 @@ export default function AdminReportActions({
         )}
       </div>
 
-      {showReject && (
+      {showReject && canAct && (
         <div className="mt-3 space-y-2">
           <textarea
             rows={3}

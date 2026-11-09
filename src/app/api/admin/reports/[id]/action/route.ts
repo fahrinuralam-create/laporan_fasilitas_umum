@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
 import { transitionReport } from "@/lib/report-workflow";
+import { deliverTelegramNotification } from "@/lib/telegram-notify";
 
 export async function POST(
   request: NextRequest,
@@ -94,6 +95,23 @@ export async function POST(
       notificationMessage: `Laporan Anda dengan nomor ${report.reportNumber} telah ditugaskan kepada petugas ${officerName}.`,
       extraData: { assignedOfficerId: officer.id },
     });
+
+    // Beri tahu petugas yang ditugaskan (in-app + Telegram bila tertaut).
+    try {
+      const officerNotification = await prisma.notification.create({
+        data: {
+          userId: officer.id,
+          reportId: id,
+          title: "Tugas Baru",
+          message: `Anda ditugaskan untuk menangani laporan ${report.reportNumber}: ${report.title}.`,
+        },
+      });
+      void deliverTelegramNotification(officerNotification.id).catch((error) => {
+        console.error("Gagal mengirim notifikasi Telegram petugas:", error);
+      });
+    } catch (error) {
+      console.error("Gagal membuat notifikasi petugas:", error);
+    }
 
     return NextResponse.json(updated);
   }

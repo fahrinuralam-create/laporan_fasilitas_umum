@@ -58,6 +58,7 @@ export const config = {
     "/admin/:path*",
     "/petugas/:path*",
     "/masyarakat/:path*",
+    "/pengaturan/:path*",
     "/login",
     "/register",
     "/unauthorized",
