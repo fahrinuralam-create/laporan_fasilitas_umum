@@ -1,6 +1,8 @@
 import { withAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
 
+const PUBLIC_PATHS = ["/login", "/register", "/unauthorized"];
+
 export default withAuth(
   function middleware(req) {
     const token = req.nextauth.token;
@@ -13,7 +15,11 @@ export default withAuth(
     }
 
     // Halaman petugas hanya untuk role PETUGAS atau ADMIN
-    if (pathname.startsWith("/petugas") && role !== "PETUGAS" && role !== "ADMIN") {
+    if (
+      pathname.startsWith("/petugas") &&
+      role !== "PETUGAS" &&
+      role !== "ADMIN"
+    ) {
       return NextResponse.redirect(new URL("/unauthorized", req.url));
     }
 
@@ -32,7 +38,17 @@ export default withAuth(
   },
   {
     callbacks: {
-      authorized: ({ token }) => !!token,
+      // Halaman publik boleh diakses tanpa login; sisanya wajib login.
+      authorized: ({ token, req }) => {
+        const pathname = req.nextUrl.pathname;
+        if (PUBLIC_PATHS.includes(pathname)) {
+          return true;
+        }
+        return !!token;
+      },
+    },
+    pages: {
+      signIn: "/login",
     },
   }
 );
@@ -44,5 +60,6 @@ export const config = {
     "/masyarakat/:path*",
     "/login",
     "/register",
+    "/unauthorized",
   ],
 };
