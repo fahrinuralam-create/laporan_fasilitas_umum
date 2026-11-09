@@ -87,6 +87,107 @@ export function priorityColor(value: string): string {
   }
 }
 
+const URGENT_KEYWORDS = [
+  "darurat",
+  "bahaya",
+  "ambruk",
+  "runtuh",
+  "roboh",
+  "kebakaran",
+  "korban",
+  "jiwa",
+  "menimpa",
+  "longsor",
+  "gas bocor",
+  "korsleting",
+  "listrik terbuka",
+  "putus total",
+  "terputus",
+  "hanyut",
+  "tenggelam",
+  "kecelakaan",
+  "membahayakan",
+];
+
+const HIGH_KEYWORDS = [
+  "parah",
+  "besar",
+  "retak",
+  "hampir",
+  "tertutup",
+  "macet",
+  "gelap total",
+  "tidak berfungsi",
+  "mengganggu",
+  "akses utama",
+  "jalan utama",
+  "vital",
+  "rusak berat",
+  "bolong besar",
+  "sekolah",
+  "rumah sakit",
+  "puskesmas",
+  "anak",
+  "malam",
+  "hujan",
+];
+
+const LOW_KEYWORDS = [
+  "kecil",
+  "ringan",
+  "sedikit",
+  "tidak mengganggu",
+  "cat",
+  "papan nama",
+  "kotor",
+  "dekorasi",
+  "taman",
+  "bangku",
+];
+
+/**
+ * Menentukan prioritas awal secara otomatis berdasarkan kategori dan isi
+ * laporan. Hasil ini nantinya dapat disempurnakan oleh analisis AI.
+ */
+export function inferPriority(input: {
+  category: string;
+  title: string;
+  description: string;
+}): ReportPriority {
+  const text = `${input.title} ${input.description}`.toLowerCase();
+
+  if (URGENT_KEYWORDS.some((keyword) => text.includes(keyword))) {
+    return "DARURAT";
+  }
+
+  let base: ReportPriority;
+  switch (input.category) {
+    case "JEMBATAN":
+    case "FASILITAS_KESEHATAN":
+      base = "TINGGI";
+      break;
+    case "LAMPU_JALAN":
+      base = "RENDAH";
+      break;
+    case "JALAN":
+    case "SALURAN_AIR":
+    case "LAINNYA":
+    default:
+      base = "SEDANG";
+  }
+
+  if (LOW_KEYWORDS.some((keyword) => text.includes(keyword))) {
+    // Fasilitas vital tetap tidak diturunkan menjadi rendah.
+    return base === "TINGGI" ? base : "RENDAH";
+  }
+
+  if (HIGH_KEYWORDS.some((keyword) => text.includes(keyword))) {
+    return base === "RENDAH" ? "SEDANG" : "TINGGI";
+  }
+
+  return base;
+}
+
 /**
  * Menghasilkan nomor laporan dengan format REP-YYYYMMDD-XXXX,
  * sesuai format data yang sudah ada.

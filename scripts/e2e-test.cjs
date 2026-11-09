@@ -91,7 +91,6 @@ async function main() {
       title: "E2E Uji Lampu Jalan",
       description: "Laporan otomatis untuk pengujian end-to-end.",
       category: "LAMPU_JALAN",
-      priority: "SEDANG",
       address: "Jl. Pengujian No. 1",
       latitude: "-6.75",
       longitude: "108.59",

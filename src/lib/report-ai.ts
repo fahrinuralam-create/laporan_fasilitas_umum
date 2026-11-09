@@ -1,4 +1,9 @@
-import { Prisma, report_aiCategory, report_aiPriority } from "@prisma/client";
+import {
+  Prisma,
+  report_aiCategory,
+  report_aiPriority,
+  report_priority,
+} from "@prisma/client";
 import prisma from "@/lib/prisma";
 import {
   AiNotConfiguredError,
@@ -450,6 +455,11 @@ export async function analyzeReportById(
     updateData.aiRejectionReason = autoRejected
       ? `AI menilai laporan/foto tidak relevan: ${analysis.reason}`
       : null;
+
+    // Sebelum diverifikasi, prioritas utama juga ditentukan otomatis oleh AI.
+    if (report.status === "DIAJUKAN") {
+      updateData.priority = analysis.priority as report_priority;
+    }
   }
 
   await prisma.report.update({ where: { id: report.id }, data: updateData });

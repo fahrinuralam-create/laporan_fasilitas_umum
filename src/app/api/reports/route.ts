@@ -3,14 +3,13 @@ import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
 import {
   buildReportNumber,
+  inferPriority,
   REPORT_CATEGORIES,
-  REPORT_PRIORITIES,
 } from "@/lib/report-utils";
 import { analyzeReportById } from "@/lib/report-ai";
 import { deliverTelegramNotification } from "@/lib/telegram-notify";
 
 const CATEGORY_VALUES = REPORT_CATEGORIES.map((c) => c.value);
-const PRIORITY_VALUES = REPORT_PRIORITIES.map((p) => p.value);
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -58,7 +57,6 @@ export async function POST(request: NextRequest) {
   const title = String(body.title ?? "").trim();
   const description = String(body.description ?? "").trim();
   const category = String(body.category ?? "");
-  const priority = String(body.priority ?? "SEDANG");
   const address = body.address ? String(body.address).trim() : null;
   const imageDataUrl = body.imageDataUrl ? String(body.imageDataUrl) : null;
 
@@ -79,8 +77,6 @@ export async function POST(request: NextRequest) {
   if (!description) errors.push("Deskripsi wajib diisi");
   if (!CATEGORY_VALUES.includes(category as never))
     errors.push("Kategori tidak valid");
-  if (!PRIORITY_VALUES.includes(priority as never))
-    errors.push("Prioritas tidak valid");
   if (latitude !== null && Number.isNaN(latitude))
     errors.push("Latitude tidak valid");
   if (longitude !== null && Number.isNaN(longitude))
@@ -91,6 +87,10 @@ export async function POST(request: NextRequest) {
   if (errors.length > 0) {
     return NextResponse.json({ error: errors.join(", ") }, { status: 400 });
   }
+
+  // Prioritas ditentukan otomatis oleh sistem (rule-based), lalu dapat
+  // disempurnakan oleh analisis AI setelah laporan dibuat.
+  const priority = inferPriority({ category, title, description });
 
   let lastError: unknown = null;
 

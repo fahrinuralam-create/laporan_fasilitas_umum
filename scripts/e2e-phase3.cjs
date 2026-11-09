@@ -109,7 +109,6 @@ async function main() {
       title: "E2E Phase 3 - Jalan Berlubang",
       description: "Laporan uji alur admin dan petugas.",
       category: "JALAN",
-      priority: "TINGGI",
       address: "Jl. Uji Phase 3",
       latitude: "-6.7",
       longitude: "108.5",

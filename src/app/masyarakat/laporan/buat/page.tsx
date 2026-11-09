@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { REPORT_CATEGORIES, REPORT_PRIORITIES } from "@/lib/report-utils";
+import { REPORT_CATEGORIES } from "@/lib/report-utils";
 import { compressImage } from "@/lib/image";
 
 export default function BuatLaporanPage() {
@@ -11,7 +11,6 @@ export default function BuatLaporanPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("JALAN");
-  const [priority, setPriority] = useState("SEDANG");
   const [address, setAddress] = useState("");
   const [latitude, setLatitude] = useState("");
   const [longitude, setLongitude] = useState("");
@@ -71,7 +70,6 @@ export default function BuatLaporanPage() {
           title,
           description,
           category,
-          priority,
           address,
           latitude,
           longitude,
@@ -151,40 +149,25 @@ export default function BuatLaporanPage() {
           />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-          <div>
-            <label className="block text-sm font-medium text-zinc-700 mb-1">
-              Kategori <span className="text-red-500">*</span>
-            </label>
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="w-full px-4 py-2 rounded-lg border border-zinc-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white"
-            >
-              {REPORT_CATEGORIES.map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-zinc-700 mb-1">
-              Prioritas <span className="text-red-500">*</span>
-            </label>
-            <select
-              value={priority}
-              onChange={(e) => setPriority(e.target.value)}
-              className="w-full px-4 py-2 rounded-lg border border-zinc-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white"
-            >
-              {REPORT_PRIORITIES.map((p) => (
-                <option key={p.value} value={p.value}>
-                  {p.label}
-                </option>
-              ))}
-            </select>
-          </div>
+        <div>
+          <label className="block text-sm font-medium text-zinc-700 mb-1">
+            Kategori <span className="text-red-500">*</span>
+          </label>
+          <select
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            className="w-full px-4 py-2 rounded-lg border border-zinc-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white"
+          >
+            {REPORT_CATEGORIES.map((c) => (
+              <option key={c.value} value={c.value}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+          <p className="mt-2 text-xs text-zinc-500">
+            Prioritas (Rendah/Sedang/Tinggi/Darurat) ditentukan otomatis oleh
+            sistem berdasarkan kategori dan isi laporan.
+          </p>
         </div>
 
         <div>

@@ -153,7 +153,6 @@ async function createReport(jar, title, description) {
       title,
       description,
       category: "LAMPU_JALAN",
-      priority: "SEDANG",
       address: "Jl. Uji Otomatis No. 5",
       latitude: "",
       longitude: "",
@@ -254,7 +253,11 @@ async function main() {
       throw new Error("Analisis gambar tidak tersimpan");
     if (r.data.reportimage[0].aiIsRelevant !== true)
       throw new Error("aiIsRelevant salah");
-    console.log("4. field AI laporan & gambar tersimpan ok");
+    if (r.data.priority !== "TINGGI")
+      throw new Error(
+        "Prioritas utama tidak diperbarui otomatis oleh AI: " + r.data.priority
+      );
+    console.log("4. field AI laporan & gambar tersimpan ok (prioritas otomatis TINGGI)");
 
     // Laporan kedua identik -> harus terdeteksi duplikat
     const report2 = await createReport(wargaJar, title, description);
