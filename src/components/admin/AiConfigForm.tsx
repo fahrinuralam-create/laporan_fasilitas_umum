@@ -1,0 +1,448 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import type { ProviderPreset } from "@/lib/ai-provider-presets";
+
+type TargetView = {
+  provider: string;
+  baseUrl: string;
+  model: string;
+  hasKey: boolean;
+  keySource: string;
+  maskedKey: string | null;
+};
+
+type View = {
+  text: TargetView;
+  vision: TargetView;
+  updatedAt: string | null;
+  updatedByEmail: string | null;
+  envHasKey: boolean;
+};
+
+export default function AiConfigForm({
+  initial,
+  presets,
+}: {
+  initial: View;
+  presets: ProviderPreset[];
+}) {
+  const router = useRouter();
+
+  const [textProvider, setTextProvider] = useState(initial.text.provider);
+  const [textBaseUrl, setTextBaseUrl] = useState(initial.text.baseUrl);
+  const [textModel, setTextModel] = useState(initial.text.model);
+  const [textKey, setTextKey] = useState("");
+  const [clearTextKey, setClearTextKey] = useState(false);
+  const [textModels, setTextModels] = useState<string[]>(
+    presets.find((p) => p.id === initial.text.provider)?.textModels ?? []
+  );
+
+  const [visionProvider, setVisionProvider] = useState(initial.vision.provider);
+  const [visionBaseUrl, setVisionBaseUrl] = useState(initial.vision.baseUrl);
+  const [visionModel, setVisionModel] = useState(initial.vision.model);
+  const [visionKey, setVisionKey] = useState("");
+  const [clearVisionKey, setClearVisionKey] = useState(false);
+  const [visionModels, setVisionModels] = useState<string[]>(
+    presets.find((p) => p.id === initial.vision.provider)?.visionModels ?? []
+  );
+
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState<string | null>(null);
+  const [loadingModels, setLoadingModels] = useState<string | null>(null);
+  const [message, setMessage] = useState<{
+    type: "ok" | "err";
+    text: string;
+  } | null>(null);
+
+  const applyTextPreset = (id: string) => {
+    setTextProvider(id);
+    const preset = presets.find((p) => p.id === id);
+    if (preset?.baseUrl) setTextBaseUrl(preset.baseUrl);
+    if (preset?.textModels[0]) setTextModel(preset.textModels[0]);
+    setTextModels(preset?.textModels ?? []);
+  };
+
+  const applyVisionPreset = (id: string) => {
+    setVisionProvider(id);
+    const preset = presets.find((p) => p.id === id);
+    if (preset?.baseUrl) setVisionBaseUrl(preset.baseUrl);
+    if (preset?.visionModels[0]) setVisionModel(preset.visionModels[0]);
+    setVisionModels(preset?.visionModels ?? []);
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/admin/ai-config", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          textProvider,
+          textBaseUrl,
+          textModel,
+          textApiKey: textKey || undefined,
+          clearTextKey,
+          visionProvider,
+          visionBaseUrl,
+          visionModel,
+          visionApiKey: visionKey || undefined,
+          clearVisionKey,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setMessage({ type: "err", text: data.error || "Gagal menyimpan" });
+        return;
+      }
+      setTextKey("");
+      setVisionKey("");
+      setClearTextKey(false);
+      setClearVisionKey(false);
+      setMessage({ type: "ok", text: "Konfigurasi berhasil disimpan." });
+      router.refresh();
+    } catch {
+      setMessage({ type: "err", text: "Terjadi kesalahan saat menyimpan" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleTest = async (target: "text" | "vision") => {
+    setTesting(target);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/admin/ai-config/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          target,
+          baseUrl: target === "text" ? textBaseUrl : visionBaseUrl,
+          apiKey: (target === "text" ? textKey : visionKey) || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setMessage({
+          type: "ok",
+          text: `Koneksi ${target} berhasil (HTTP ${data.status}${
+            data.count != null ? `, ${data.count} model` : ""
+          }).`,
+        });
+      } else {
+        setMessage({
+          type: "err",
+          text: `Koneksi ${target} gagal: ${data.error || "tidak diketahui"}`,
+        });
+      }
+    } catch {
+      setMessage({ type: "err", text: "Gagal menguji koneksi" });
+    } finally {
+      setTesting(null);
+    }
+  };
+
+  const handleLoadModels = async (target: "text" | "vision") => {
+    setLoadingModels(target);
+    setMessage(null);
+    try {
+      const res = await fetch(
+        `/api/admin/ai-config/models?target=${target}`
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        setMessage({ type: "err", text: data.error || "Gagal memuat model" });
+        return;
+      }
+      if (target === "text") setTextModels(data.models ?? []);
+      else setVisionModels(data.models ?? []);
+      setMessage({
+        type: "ok",
+        text: `${(data.models ?? []).length} model dimuat untuk ${target}.`,
+      });
+    } catch {
+      setMessage({ type: "err", text: "Gagal memuat daftar model" });
+    } finally {
+      setLoadingModels(null);
+    }
+  };
+
+  const sourceBadge = (source: string) => {
+    const map: Record<string, string> = {
+      db: "bg-green-100 text-green-700 border-green-200",
+      env: "bg-amber-100 text-amber-700 border-amber-200",
+      none: "bg-red-100 text-red-700 border-red-200",
+    };
+    const label =
+      source === "db"
+        ? "Database"
+        : source === "env"
+          ? "Environment"
+          : "Belum ada";
+    return (
+      <span
+        className={`px-2 py-0.5 rounded-full text-xs font-medium border ${
+          map[source] ?? map.none
+        }`}
+      >
+        {label}
+      </span>
+    );
+  };
+
+  return (
+    <form onSubmit={handleSave} className="space-y-6">
+      {message && (
+        <div
+          className={`p-3 rounded-lg text-sm border ${
+            message.type === "ok"
+              ? "bg-green-50 border-green-200 text-green-700"
+              : "bg-red-50 border-red-200 text-red-700"
+          }`}
+        >
+          {message.text}
+        </div>
+      )}
+
+      {/* Text model */}
+      <section className="bg-white rounded-xl border border-zinc-200 shadow-sm p-6">
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <div>
+            <h2 className="text-lg font-bold text-zinc-900">Model Teks</h2>
+            <p className="text-sm text-zinc-500">
+              Digunakan untuk analisis teks laporan.
+            </p>
+          </div>
+          {sourceBadge(initial.text.keySource)}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-zinc-700 mb-1">
+              Provider
+            </label>
+            <select
+              value={textProvider}
+              onChange={(e) => applyTextPreset(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-zinc-300 bg-white text-sm outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {presets.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-zinc-700 mb-1">
+              Base URL
+            </label>
+            <input
+              type="text"
+              value={textBaseUrl}
+              onChange={(e) => setTextBaseUrl(e.target.value)}
+              placeholder="https://integrate.api.nvidia.com/v1"
+              className="w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div className="sm:col-span-2">
+            <label className="block text-sm font-medium text-zinc-700 mb-1">
+              Model
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                list="text-models"
+                value={textModel}
+                onChange={(e) => setTextModel(e.target.value)}
+                placeholder="nama-model"
+                className="flex-1 px-3 py-2 rounded-lg border border-zinc-300 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <button
+                type="button"
+                onClick={() => handleLoadModels("text")}
+                disabled={loadingModels !== null}
+                className="px-3 py-2 rounded-lg border border-zinc-300 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+              >
+                {loadingModels === "text" ? "..." : "Muat"}
+              </button>
+            </div>
+            <datalist id="text-models">
+              {textModels.map((m) => (
+                <option key={m} value={m} />
+              ))}
+            </datalist>
+          </div>
+
+          <div className="sm:col-span-2">
+            <label className="block text-sm font-medium text-zinc-700 mb-1">
+              API Key
+            </label>
+            <input
+              type="password"
+              value={textKey}
+              onChange={(e) => setTextKey(e.target.value)}
+              placeholder={
+                initial.text.hasKey
+                  ? `Tersimpan: ${initial.text.maskedKey} (kosongkan bila tidak diubah)`
+                  : "Belum ada API key"
+              }
+              className="w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <div className="flex items-center justify-between mt-2">
+              <label className="flex items-center gap-2 text-sm text-zinc-600">
+                <input
+                  type="checkbox"
+                  checked={clearTextKey}
+                  onChange={(e) => setClearTextKey(e.target.checked)}
+                />
+                Hapus API key tersimpan
+              </label>
+              <button
+                type="button"
+                onClick={() => handleTest("text")}
+                disabled={testing !== null}
+                className="text-sm font-medium text-blue-600 hover:text-blue-500 disabled:opacity-50"
+              >
+                {testing === "text" ? "Menguji..." : "Uji Koneksi Teks"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Vision model */}
+      <section className="bg-white rounded-xl border border-zinc-200 shadow-sm p-6">
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <div>
+            <h2 className="text-lg font-bold text-zinc-900">Model Vision</h2>
+            <p className="text-sm text-zinc-500">
+              Digunakan untuk analisis foto laporan.
+            </p>
+          </div>
+          {sourceBadge(initial.vision.keySource)}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-zinc-700 mb-1">
+              Provider
+            </label>
+            <select
+              value={visionProvider}
+              onChange={(e) => applyVisionPreset(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-zinc-300 bg-white text-sm outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {presets.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-zinc-700 mb-1">
+              Base URL
+            </label>
+            <input
+              type="text"
+              value={visionBaseUrl}
+              onChange={(e) => setVisionBaseUrl(e.target.value)}
+              placeholder="https://integrate.api.nvidia.com/v1"
+              className="w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div className="sm:col-span-2">
+            <label className="block text-sm font-medium text-zinc-700 mb-1">
+              Model
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                list="vision-models"
+                value={visionModel}
+                onChange={(e) => setVisionModel(e.target.value)}
+                placeholder="nama-model-vision"
+                className="flex-1 px-3 py-2 rounded-lg border border-zinc-300 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <button
+                type="button"
+                onClick={() => handleLoadModels("vision")}
+                disabled={loadingModels !== null}
+                className="px-3 py-2 rounded-lg border border-zinc-300 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+              >
+                {loadingModels === "vision" ? "..." : "Muat"}
+              </button>
+            </div>
+            <datalist id="vision-models">
+              {visionModels.map((m) => (
+                <option key={m} value={m} />
+              ))}
+            </datalist>
+          </div>
+
+          <div className="sm:col-span-2">
+            <label className="block text-sm font-medium text-zinc-700 mb-1">
+              API Key
+            </label>
+            <input
+              type="password"
+              value={visionKey}
+              onChange={(e) => setVisionKey(e.target.value)}
+              placeholder={
+                initial.vision.hasKey
+                  ? `Tersimpan: ${initial.vision.maskedKey} (kosongkan bila tidak diubah)`
+                  : "Belum ada API key"
+              }
+              className="w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <div className="flex items-center justify-between mt-2">
+              <label className="flex items-center gap-2 text-sm text-zinc-600">
+                <input
+                  type="checkbox"
+                  checked={clearVisionKey}
+                  onChange={(e) => setClearVisionKey(e.target.checked)}
+                />
+                Hapus API key tersimpan
+              </label>
+              <button
+                type="button"
+                onClick={() => handleTest("vision")}
+                disabled={testing !== null}
+                className="text-sm font-medium text-blue-600 hover:text-blue-500 disabled:opacity-50"
+              >
+                {testing === "vision" ? "Menguji..." : "Uji Koneksi Vision"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-xs text-zinc-500">
+          API key disimpan terenkripsi (AES-256-GCM) dan tidak pernah
+          ditampilkan kembali.
+          {initial.updatedAt
+            ? ` Terakhir diubah ${new Date(
+                initial.updatedAt
+              ).toLocaleString("id-ID")}.`
+            : ""}
+        </p>
+        <button
+          type="submit"
+          disabled={saving}
+          className="px-6 py-2.5 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-50 transition"
+        >
+          {saving ? "Menyimpan..." : "Simpan Konfigurasi"}
+        </button>
+      </div>
+    </form>
+  );
+}

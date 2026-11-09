@@ -11,6 +11,7 @@ function linksForRole(role?: string): NavLink[] {
     return [
       { href: "/admin/dashboard", label: "Dashboard" },
       { href: "/admin/laporan", label: "Kelola Laporan" },
+      { href: "/admin/ai-config", label: "Konfigurasi AI" },
     ];
   }
   if (role === "PETUGAS") {
