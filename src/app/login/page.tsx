@@ -48,65 +48,70 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-zinc-50">
-      <div className="w-full max-w-md px-4 sm:px-6 lg:px-8">
-        <div className="bg-white rounded-xl shadow-sm border border-zinc-200 p-8">
+    <div className="min-h-screen flex items-center justify-center bg-background px-4">
+      <div className="w-full max-w-md">
+        <div className="card rounded-2xl shadow-xl border border-border p-8 sm:p-10">
           <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold text-zinc-900">Masuk</h1>
-            <p className="text-zinc-600 mt-2">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-white mb-3 shadow-lg">
+              <span className="text-lg font-bold">PF</span>
+            </div>
+            <h1 className="text-2xl font-bold text-foreground">Masuk</h1>
+            <p className="text-muted-foreground mt-2">
               Selamat datang kembali ke Pelaporan Fasilitas
             </p>
           </div>
 
           {error && (
-            <div className="mb-6 p-3 rounded-md bg-red-50 border border-red-200 text-red-700 text-sm">
+            <div className="mb-6 p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-sm">
               {error}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="block text-sm font-medium text-zinc-700 mb-1">
+              <label className="block text-sm font-medium text-foreground mb-1.5">
                 Email
               </label>
               <input
                 type="email"
                 required
+                autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-2 rounded-lg border border-zinc-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                className="w-full px-4 py-3 rounded-xl border border-input bg-background focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all disabled:opacity-70"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-zinc-700 mb-1">
-                Password
+              <label className="block text-sm font-medium text-foreground mb-1.5">
+                Kata Sandi
               </label>
               <input
                 type="password"
                 required
+                autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2 rounded-lg border border-zinc-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                className="w-full px-4 py-3 rounded-xl border border-input bg-background focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all disabled:opacity-70"
               />
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full px-4 py-2 rounded-lg bg-blue-600 text-white font-semibold disabled:opacity-50 transition hover:bg-blue-700"
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-primary text-white font-semibold shadow-lg hover:bg-blue-700 disabled:opacity-70 disabled:cursor-not-allowed transition-all"
             >
               {loading ? "Memproses..." : "Masuk"}
             </button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-zinc-600">
-            Belum punya akun?{" "}
+          <p className="mt-6 text-center text-sm text-muted-foreground">
+            Belum memiliki akun?{" "}
             <Link
               href="/register"
-              className="font-medium text-blue-600 hover:text-blue-500"
+              className="font-medium text-primary hover:text-primary/90"
             >
-              Daftar sekarang
+              Daftar di sini
             </Link>
           </p>
         </div>

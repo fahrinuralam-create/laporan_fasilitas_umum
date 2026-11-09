@@ -98,31 +98,31 @@ export default function BuatLaporanPage() {
       <div className="mb-6">
         <Link
           href="/masyarakat/laporan"
-          className="text-sm font-medium text-blue-600 hover:text-blue-500"
+          className="text-sm font-medium text-primary hover:text-primary/90"
         >
           &larr; Kembali ke daftar laporan
         </Link>
-        <h1 className="text-2xl font-bold text-zinc-900 mt-2">
+        <h1 className="text-2xl font-bold text-foreground mt-2">
           Buat Laporan Fasilitas
         </h1>
-        <p className="text-zinc-600">
+        <p className="text-muted-foreground">
           Lengkapi data laporan kerusakan fasilitas publik di sekitar Anda.
         </p>
       </div>
 
       {error && (
-        <div className="mb-5 p-3 rounded-md bg-red-50 border border-red-200 text-red-700 text-sm">
+        <div className="mb-5 p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-sm">
           {error}
         </div>
       )}
 
       <form
         onSubmit={handleSubmit}
-        className="bg-white rounded-xl border border-zinc-200 shadow-sm p-6 space-y-5"
+        className="card rounded-2xl shadow-sm border border-border p-6 sm:p-8 space-y-6"
       >
         <div>
-          <label className="block text-sm font-medium text-zinc-700 mb-1">
-            Judul Laporan <span className="text-red-500">*</span>
+          <label className="block text-sm font-medium text-foreground mb-1.5">
+            Judul Laporan <span className="text-destructive">*</span>
           </label>
           <input
             type="text"
@@ -131,13 +131,13 @@ export default function BuatLaporanPage() {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Contoh: Lampu jalan mati di pertigaan"
-            className="w-full px-4 py-2 rounded-lg border border-zinc-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+            className="w-full px-4 py-3 rounded-xl border border-input bg-background focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all disabled:opacity-70"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-zinc-700 mb-1">
-            Deskripsi <span className="text-red-500">*</span>
+          <label className="block text-sm font-medium text-foreground mb-1.5">
+            Deskripsi <span className="text-destructive">*</span>
           </label>
           <textarea
             required
@@ -145,18 +145,18 @@ export default function BuatLaporanPage() {
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Jelaskan kondisi kerusakan secara detail..."
-            className="w-full px-4 py-2 rounded-lg border border-zinc-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition resize-y"
+            className="w-full px-4 py-3 rounded-xl border border-input bg-background focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all disabled:opacity-70 resize-y"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-zinc-700 mb-1">
-            Kategori <span className="text-red-500">*</span>
+          <label className="block text-sm font-medium text-foreground mb-1.5">
+            Kategori <span className="text-destructive">*</span>
           </label>
           <select
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            className="w-full px-4 py-2 rounded-lg border border-zinc-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white"
+            className="w-full px-4 py-3 rounded-xl border border-input bg-background focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all disabled:opacity-70"
           >
             {REPORT_CATEGORIES.map((c) => (
               <option key={c.value} value={c.value}>
@@ -164,14 +164,14 @@ export default function BuatLaporanPage() {
               </option>
             ))}
           </select>
-          <p className="mt-2 text-xs text-zinc-500">
+          <p className="mt-2 text-xs text-muted-foreground">
             Prioritas (Rendah/Sedang/Tinggi/Darurat) ditentukan otomatis oleh
             sistem berdasarkan kategori dan isi laporan.
           </p>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-zinc-700 mb-1">
+          <label className="block text-sm font-medium text-foreground mb-1.5">
             Alamat / Lokasi
           </label>
           <input
@@ -179,20 +179,20 @@ export default function BuatLaporanPage() {
             value={address}
             onChange={(e) => setAddress(e.target.value)}
             placeholder="Contoh: Jl. Perjuangan, dekat pasar"
-            className="w-full px-4 py-2 rounded-lg border border-zinc-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+            className="w-full px-4 py-3 rounded-xl border border-input bg-background focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all disabled:opacity-70"
           />
         </div>
 
         <div>
-          <div className="flex items-center justify-between mb-1">
-            <label className="block text-sm font-medium text-zinc-700">
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="block text-sm font-medium text-foreground">
               Koordinat
             </label>
             <button
               type="button"
               onClick={handleUseLocation}
               disabled={locating}
-              className="text-sm font-medium text-blue-600 hover:text-blue-500 disabled:opacity-50"
+              className="text-sm font-medium text-primary hover:text-primary/90 disabled:opacity-50"
             >
               {locating ? "Mengambil lokasi..." : "Gunakan lokasi saat ini"}
             </button>
@@ -204,7 +204,7 @@ export default function BuatLaporanPage() {
               value={latitude}
               onChange={(e) => setLatitude(e.target.value)}
               placeholder="Latitude (mis. -6.756)"
-              className="w-full px-4 py-2 rounded-lg border border-zinc-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+              className="w-full px-4 py-3 rounded-xl border border-input bg-background focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all disabled:opacity-70"
             />
             <input
               type="text"
@@ -212,27 +212,26 @@ export default function BuatLaporanPage() {
               value={longitude}
               onChange={(e) => setLongitude(e.target.value)}
               placeholder="Longitude (mis. 108.593)"
-              className="w-full px-4 py-2 rounded-lg border border-zinc-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+              className="w-full px-4 py-3 rounded-xl border border-input bg-background focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all disabled:opacity-70"
             />
           </div>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-zinc-700 mb-1">
+          <label className="block text-sm font-medium text-foreground mb-1.5">
             Foto Kondisi (opsional)
           </label>
           <input
             type="file"
             accept="image/*"
             onChange={(e) => handleImage(e.target.files?.[0])}
-            className="block w-full text-sm text-zinc-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-blue-50 file:text-blue-700 file:font-medium hover:file:bg-blue-100"
+            className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-primary file:text-white file:font-medium hover:file:bg-blue-700 transition-all"
           />
           {imageDataUrl && (
-            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={imageDataUrl}
               alt="Pratinjau"
-              className="mt-3 h-40 w-auto rounded-lg border border-zinc-200 object-cover"
+              className="mt-3 h-48 w-auto rounded-xl border border-border object-cover shadow-sm"
             />
           )}
         </div>
@@ -240,14 +239,14 @@ export default function BuatLaporanPage() {
         <div className="flex justify-end gap-3 pt-2">
           <Link
             href="/masyarakat/laporan"
-            className="px-4 py-2 rounded-lg border border-zinc-300 text-zinc-700 font-medium hover:bg-zinc-50 transition"
+            className="px-5 py-3 rounded-xl border border-input bg-background text-foreground font-medium hover:bg-accent transition-all disabled:opacity-70"
           >
             Batal
           </Link>
           <button
             type="submit"
             disabled={loading}
-            className="px-5 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-50 transition"
+            className="px-5 py-3 rounded-xl bg-primary text-white font-semibold shadow-lg hover:bg-blue-700 disabled:opacity-70 disabled:cursor-not-allowed transition-all active:scale-95"
           >
             {loading ? "Mengirim..." : "Kirim Laporan"}
           </button>

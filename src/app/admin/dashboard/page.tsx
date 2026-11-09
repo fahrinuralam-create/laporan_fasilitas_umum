@@ -11,6 +11,15 @@ import {
 
 export const dynamic = "force-dynamic";
 
+const STAT_COLORS: Record<string, string> = {
+  DIAJUKAN: "bg-blue-50 text-blue-700 border-blue-200",
+  DIVERIFIKASI: "bg-indigo-50 text-indigo-700 border-indigo-200",
+  DITUGASKAN: "bg-purple-50 text-purple-700 border-purple-200",
+  DIPROSES: "bg-amber-50 text-amber-700 border-amber-200",
+  SELESAI: "bg-green-50 text-green-700 border-green-200",
+  DITOLAK: "bg-red-50 text-red-700 border-red-200",
+};
+
 export default async function AdminDashboard() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
@@ -45,62 +54,65 @@ export default async function AdminDashboard() {
   ]);
 
   const stats = [
-    { label: "Total Laporan", value: total, color: "text-zinc-900" },
-    { label: "Menunggu Verifikasi", value: menunggu, color: "text-blue-600" },
-    { label: "Diproses", value: diproses, color: "text-amber-600" },
-    { label: "Selesai", value: selesai, color: "text-green-600" },
-    { label: "Ditolak", value: ditolak, color: "text-red-600" },
+    { label: "Total Laporan", value: total, icon: "📄", color: "text-primary-foreground" },
+    { label: "Menunggu Verifikasi", value: menunggu, icon: "⏳", color: "text-primary" },
+    { label: "Diproses", value: diproses, icon: "⚙️", color: "text-amber-600" },
+    { label: "Selesai", value: selesai, icon: "✅", color: "text-green-600" },
+    { label: "Ditolak", value: ditolak, icon: "❌", color: "text-red-600" },
   ];
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-zinc-900">Dashboard Admin</h1>
-          <p className="text-zinc-600">
-            Selamat datang, {user.name || user.email} · {petugasCount} petugas
+          <h1 className="text-3xl font-bold text-foreground">Dashboard Admin</h1>
+          <p className="text-muted-foreground">
+            Selamat datang, {user.name || user.email} &middot; {petugasCount} petugas
             terdaftar
           </p>
         </div>
         <Link
           href="/admin/laporan"
-          className="inline-flex items-center justify-center px-5 py-2.5 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 transition"
+          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white font-semibold shadow-lg hover:bg-blue-700 transition-all active:scale-95"
         >
           Kelola Laporan
         </Link>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6">
         {stats.map((s) => (
           <div
             key={s.label}
-            className="bg-white p-5 rounded-xl shadow-sm border border-zinc-200"
+            className="card p-5 rounded-xl shadow-sm border border-border hover:shadow-md transition-all"
           >
-            <h3 className="text-sm font-medium text-zinc-500 mb-2">
+            <h3 className="text-sm font-medium text-muted-foreground mb-1">
               {s.label}
             </h3>
             <p className={`text-3xl font-bold ${s.color}`}>{s.value}</p>
+            <span className={`text-xs uppercase tracking-wider font-semibold opacity-50 ${s.color}`}>
+              {s.icon}
+            </span>
           </div>
         ))}
       </div>
 
-      <div className="mt-8 bg-white rounded-xl shadow-sm border border-zinc-200 overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-200">
-          <h2 className="text-lg font-bold text-zinc-900">Laporan Terbaru</h2>
+      <div className="mt-8 card rounded-xl shadow-sm border border-border overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+          <h2 className="text-lg font-bold text-foreground">Laporan Terbaru</h2>
           <Link
             href="/admin/laporan"
-            className="text-sm font-medium text-blue-600 hover:text-blue-500"
+            className="text-sm font-medium text-primary hover:text-primary/90"
           >
             Lihat semua
           </Link>
         </div>
 
         {recent.length === 0 ? (
-          <p className="p-8 text-center text-zinc-500">Belum ada laporan.</p>
+          <p className="p-8 text-center text-muted-foreground">Belum ada laporan.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-zinc-50 text-zinc-500">
+              <thead className="bg-muted text-muted-foreground text-xs uppercase">
                 <tr>
                   <th className="text-left font-medium px-6 py-3">Laporan</th>
                   <th className="text-left font-medium px-6 py-3">Pelapor</th>
@@ -109,36 +121,34 @@ export default async function AdminDashboard() {
                   <th className="text-left font-medium px-6 py-3">Tanggal</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-100">
+              <tbody className="divide-y divide-border">
                 {recent.map((r) => (
-                  <tr key={r.id} className="hover:bg-zinc-50">
+                  <tr key={r.id} className="hover:bg-accent/50 transition-all">
                     <td className="px-6 py-3">
                       <Link
                         href={`/admin/laporan/${r.id}`}
-                        className="font-medium text-zinc-900 hover:text-blue-600"
+                        className="font-medium text-foreground hover:text-primary transition-colors"
                       >
                         {r.title}
                       </Link>
-                      <p className="text-xs text-zinc-400">
-                        {r.reportNumber} · {categoryLabel(r.category)}
+                      <p className="text-xs text-muted-foreground">
+                        {r.reportNumber} &middot; {categoryLabel(r.category)}
                       </p>
                     </td>
-                    <td className="px-6 py-3 text-zinc-600">
+                    <td className="px-6 py-3 text-muted-foreground">
                       {r.reporter.name || r.reporter.email || "-"}
                     </td>
-                    <td className="px-6 py-3 text-zinc-600">
+                    <td className="px-6 py-3 text-muted-foreground">
                       {r.assignedOfficer?.name || "-"}
                     </td>
                     <td className="px-6 py-3">
                       <span
-                        className={`px-2 py-0.5 rounded-full text-xs font-medium border ${statusColor(
-                          r.status
-                        )}`}
+                        className={`px-2 py-0.5 rounded-full text-xs font-medium border ${STAT_COLORS[r.status] || "bg-zinc-100 text-zinc-600 border-zinc-200"}`}
                       >
                         {statusLabel(r.status)}
                       </span>
                     </td>
-                    <td className="px-6 py-3 text-zinc-500">
+                    <td className="px-6 py-3 text-muted-foreground">
                       {formatDateTime(r.createdAt)}
                     </td>
                   </tr>

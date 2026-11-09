@@ -77,32 +77,32 @@ export default async function LaporanDetailPage({
           >
             Prioritas: {priorityLabel(report.priority)}
           </span>
-          <span className="px-2.5 py-1 rounded-full text-xs font-medium border bg-zinc-100 text-zinc-700 border-zinc-200">
+          <span className="px-2.5 py-1 rounded-full text-xs font-medium border bg-muted text-muted-foreground border-border">
             {categoryLabel(report.category)}
           </span>
         </div>
 
-        <h1 className="text-2xl font-bold text-zinc-900">{report.title}</h1>
-        <p className="text-sm text-zinc-500 mt-1">
+        <h1 className="text-2xl font-bold text-foreground">{report.title}</h1>
+        <p className="text-sm text-muted-foreground mt-1">
           {report.reportNumber} · Dibuat {formatDateTime(report.createdAt)}
         </p>
 
         <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
           <div>
-            <p className="text-zinc-500">Pelapor</p>
-            <p className="font-medium text-zinc-900">
+            <p className="text-muted-foreground">Pelapor</p>
+            <p className="font-medium text-foreground">
               {report.reporter.name || report.reporter.email || "-"}
             </p>
           </div>
           <div>
-            <p className="text-zinc-500">Petugas Ditugaskan</p>
-            <p className="font-medium text-zinc-900">
+            <p className="text-muted-foreground">Petugas Ditugaskan</p>
+            <p className="font-medium text-foreground">
               {report.assignedOfficer?.name || "Belum ditugaskan"}
             </p>
           </div>
           <div className="sm:col-span-2">
-            <p className="text-zinc-500">Lokasi</p>
-            <p className="font-medium text-zinc-900">
+            <p className="text-muted-foreground">Lokasi</p>
+            <p className="font-medium text-foreground">
               {report.address || "-"}
             </p>
             {report.latitude !== null && report.longitude !== null && (
@@ -119,20 +119,20 @@ export default async function LaporanDetailPage({
         </div>
 
         <div className="mt-5">
-          <p className="text-zinc-500 text-sm mb-1">Deskripsi</p>
-          <p className="text-zinc-800 whitespace-pre-line">
+          <p className="text-muted-foreground text-sm mb-1">Deskripsi</p>
+          <p className="text-foreground/90 whitespace-pre-line">
             {report.description}
           </p>
         </div>
 
         {rejection && (
-          <div className="mt-5 p-4 rounded-lg bg-red-50 border border-red-200">
-            <p className="text-sm font-semibold text-red-700">
+          <div className="mt-5 p-4 rounded-lg bg-destructive/10 border border-destructive/20">
+            <p className="text-sm font-semibold text-destructive">
               {isSystemActorNote(rejection.notes)
                 ? "Laporan Ditolak Otomatis"
                 : "Laporan Ditolak"}
             </p>
-            <p className="text-sm text-red-700 mt-1">
+            <p className="text-sm text-destructive mt-1">
               {cleanHistoryNotes(rejection.notes) ||
                 "Laporan ditolak oleh admin."}
             </p>
@@ -141,8 +141,8 @@ export default async function LaporanDetailPage({
       </div>
 
       {beforeImages.length > 0 && (
-        <div className="bg-white rounded-xl border border-zinc-200 shadow-sm p-6 mb-6">
-          <h2 className="text-lg font-bold text-zinc-900 mb-3">
+        <div className="bg-card rounded-xl border border-border shadow-sm p-6 mb-6">
+          <h2 className="text-lg font-bold text-foreground mb-3">
             Foto Kondisi
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -152,7 +152,7 @@ export default async function LaporanDetailPage({
                 key={img.id}
                 src={img.imageUrl}
                 alt="Foto kondisi"
-                className="w-full h-56 object-cover rounded-lg border border-zinc-200"
+                className="w-full h-56 object-cover rounded-lg border border-border"
               />
             ))}
           </div>
@@ -160,8 +160,8 @@ export default async function LaporanDetailPage({
       )}
 
       {afterImages.length > 0 && (
-        <div className="bg-white rounded-xl border border-zinc-200 shadow-sm p-6 mb-6">
-          <h2 className="text-lg font-bold text-zinc-900 mb-3">
+        <div className="bg-card rounded-xl border border-border shadow-sm p-6 mb-6">
+          <h2 className="text-lg font-bold text-foreground mb-3">
             Foto Setelah Perbaikan
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -171,37 +171,37 @@ export default async function LaporanDetailPage({
                 key={img.id}
                 src={img.imageUrl}
                 alt="Foto setelah perbaikan"
-                className="w-full h-56 object-cover rounded-lg border border-zinc-200"
+                className="w-full h-56 object-cover rounded-lg border border-border"
               />
             ))}
           </div>
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-zinc-200 shadow-sm p-6">
-        <h2 className="text-lg font-bold text-zinc-900 mb-4">
+      <div className="bg-card rounded-xl border border-border shadow-sm p-6">
+        <h2 className="text-lg font-bold text-foreground mb-4">
           Riwayat Status
         </h2>
         {report.reporthistory.length === 0 ? (
-          <p className="text-zinc-500">Belum ada riwayat.</p>
+          <p className="text-muted-foreground">Belum ada riwayat.</p>
         ) : (
-          <ol className="relative border-l border-zinc-200 ml-2 space-y-5">
+          <ol className="relative border-l border-border ml-2 space-y-5">
             {report.reporthistory.map((h) => (
               <li key={h.id} className="ml-5">
                 <span className="absolute -left-[7px] mt-1.5 h-3 w-3 rounded-full bg-blue-500 border-2 border-white" />
-                <p className="text-sm font-medium text-zinc-900">
+                <p className="text-sm font-medium text-foreground">
                   {statusLabel(h.newStatus)}
-                  <span className="text-zinc-400 font-normal">
+                  <span className="text-muted-foreground font-normal">
                     {" "}
                     · {formatDateTime(h.createdAt)}
                   </span>
                 </p>
                 {cleanHistoryNotes(h.notes) && (
-                  <p className="text-sm text-zinc-600 mt-0.5">
+                  <p className="text-sm text-muted-foreground mt-0.5">
                     {cleanHistoryNotes(h.notes)}
                   </p>
                 )}
-                <p className="text-xs text-zinc-400 mt-0.5">
+                <p className="text-xs text-muted-foreground mt-0.5">
                   oleh{" "}
                   {isSystemActorNote(h.notes)
                     ? "Sistem AI"

@@ -99,17 +99,17 @@ export default function AdminReportActions({
   };
 
   return (
-    <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
-      <p className="text-sm font-semibold text-zinc-700 mb-3">Aksi Admin</p>
+    <div className="card rounded-xl border border-border shadow-sm p-5">
+      <p className="text-sm font-semibold text-foreground mb-3">Aksi Admin</p>
 
       {error && (
-        <div className="mb-3 p-2 rounded-md bg-red-50 border border-red-200 text-red-700 text-sm">
+        <div className="mb-3 p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-sm">
           {error}
         </div>
       )}
 
       {aiMessage && (
-        <div className="mb-3 p-2 rounded-md bg-indigo-50 border border-indigo-200 text-indigo-700 text-sm">
+        <div className="mb-3 p-3 rounded-xl bg-primary/10 border border-primary/20 text-primary text-sm">
           {aiMessage}
         </div>
       )}
@@ -138,7 +138,7 @@ export default function AdminReportActions({
             <select
               value={officerId}
               onChange={(e) => setOfficerId(e.target.value)}
-              className="px-3 py-2 rounded-lg border border-zinc-300 bg-white text-sm outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-3 py-2 rounded-lg border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-primary"
             >
               {officers.length === 0 ? (
                 <option value="">Tidak ada petugas</option>
@@ -164,7 +164,7 @@ export default function AdminReportActions({
           <button
             onClick={() => setShowReject((v) => !v)}
             disabled={pending !== null}
-            className="px-4 py-2 rounded-lg border border-red-300 text-red-600 text-sm font-semibold hover:bg-red-50 disabled:opacity-50 transition"
+            className="px-4 py-2 rounded-lg border border-destructive/30 text-destructive text-sm font-semibold hover:bg-destructive/10 disabled:opacity-50 transition"
           >
             Tolak
           </button>
@@ -178,7 +178,7 @@ export default function AdminReportActions({
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             placeholder="Alasan penolakan..."
-            className="w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm outline-none focus:ring-2 focus:ring-red-400"
+            className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-destructive"
           />
           <div className="flex gap-2">
             <button

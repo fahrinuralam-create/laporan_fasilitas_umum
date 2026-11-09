@@ -45,13 +45,13 @@ export default function ReportDetailCard({
           >
             Prioritas: {priorityLabel(report.priority)}
           </span>
-          <span className="px-2.5 py-1 rounded-full text-xs font-medium border bg-zinc-100 text-zinc-700 border-zinc-200">
+          <span className="px-2.5 py-1 rounded-full text-xs font-medium border bg-muted text-muted-foreground border-border">
             {categoryLabel(report.category)}
           </span>
         </div>
 
-        <h1 className="text-2xl font-bold text-zinc-900">{report.title}</h1>
-        <p className="text-sm text-zinc-500 mt-1">
+        <h1 className="text-2xl font-bold text-foreground">{report.title}</h1>
+        <p className="text-sm text-muted-foreground mt-1">
           {report.reportNumber} · Dibuat {formatDateTime(report.createdAt)}
         </p>
 
@@ -59,23 +59,23 @@ export default function ReportDetailCard({
 
         <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
           <div>
-            <p className="text-zinc-500">Pelapor</p>
-            <p className="font-medium text-zinc-900">
+            <p className="text-muted-foreground">Pelapor</p>
+            <p className="font-medium text-foreground">
               {report.reporter.name || report.reporter.email || "-"}
             </p>
             {report.reporter.phone && (
-              <p className="text-zinc-500">{report.reporter.phone}</p>
+              <p className="text-muted-foreground">{report.reporter.phone}</p>
             )}
           </div>
           <div>
-            <p className="text-zinc-500">Petugas Ditugaskan</p>
-            <p className="font-medium text-zinc-900">
+            <p className="text-muted-foreground">Petugas Ditugaskan</p>
+            <p className="font-medium text-foreground">
               {report.assignedOfficer?.name || "Belum ditugaskan"}
             </p>
           </div>
           <div className="sm:col-span-2">
-            <p className="text-zinc-500">Lokasi</p>
-            <p className="font-medium text-zinc-900">
+            <p className="text-muted-foreground">Lokasi</p>
+            <p className="font-medium text-foreground">
               {report.address || "-"}
             </p>
             {report.latitude !== null && report.longitude !== null && (
@@ -83,7 +83,7 @@ export default function ReportDetailCard({
                 href={`https://www.google.com/maps?q=${report.latitude},${report.longitude}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-600 hover:text-blue-500 text-sm"
+                className="text-primary hover:text-primary/90 text-sm"
               >
                 {report.latitude}, {report.longitude} (buka peta)
               </a>
@@ -92,14 +92,14 @@ export default function ReportDetailCard({
         </div>
 
         <div className="mt-5">
-          <p className="text-zinc-500 text-sm mb-1">Deskripsi</p>
-          <p className="text-zinc-800 whitespace-pre-line">
+          <p className="text-muted-foreground text-sm mb-1">Deskripsi</p>
+          <p className="text-foreground/90 whitespace-pre-line">
             {report.description}
           </p>
         </div>
 
         {rejection && (
-          <div className="mt-5 p-4 rounded-lg bg-red-50 border border-red-200">
+          <div className="mt-5 p-4 rounded-lg bg-destructive/10 border border-destructive/20">
             <p className="text-sm font-semibold text-red-700">
               {isSystemActorNote(rejection.notes)
                 ? "Laporan Ditolak Otomatis"
@@ -113,9 +113,9 @@ export default function ReportDetailCard({
         )}
       </div>
 
-      <div className="bg-white rounded-xl border border-zinc-200 shadow-sm p-6">
+      <div className="bg-card rounded-xl border border-border shadow-sm p-6">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-          <h2 className="text-lg font-bold text-zinc-900">Analisis AI</h2>
+          <h2 className="text-lg font-bold text-foreground">Analisis AI</h2>
           {report.aiAnalyzedAt ? (
             <span className="px-2.5 py-1 rounded-full text-xs font-medium border bg-indigo-100 text-indigo-700 border-indigo-200">
               Keyakinan{" "}
@@ -124,14 +124,14 @@ export default function ReportDetailCard({
                 : "-"}
             </span>
           ) : (
-            <span className="px-2.5 py-1 rounded-full text-xs font-medium border bg-zinc-100 text-zinc-600 border-zinc-200">
+            <span className="px-2.5 py-1 rounded-full text-xs font-medium border bg-muted text-muted-foreground border-border">
               Belum dianalisis
             </span>
           )}
         </div>
 
         {!report.aiAnalyzedAt && !report.aiIsDuplicate ? (
-          <p className="text-sm text-zinc-500">
+          <p className="text-sm text-muted-foreground">
             Laporan ini belum memiliki hasil analisis AI. Admin dapat
             menjalankan analisis dari panel aksi di halaman ini.
           </p>
@@ -141,24 +141,24 @@ export default function ReportDetailCard({
               <>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
                   <div>
-                    <p className="text-zinc-500">Saran Kategori</p>
-                    <p className="font-medium text-zinc-900">
+                    <p className="text-muted-foreground">Saran Kategori</p>
+                    <p className="font-medium text-foreground">
                       {report.aiCategory
                         ? categoryLabel(report.aiCategory)
                         : "-"}
                     </p>
                   </div>
                   <div>
-                    <p className="text-zinc-500">Saran Prioritas</p>
-                    <p className="font-medium text-zinc-900">
+                    <p className="text-muted-foreground">Saran Prioritas</p>
+                    <p className="font-medium text-foreground">
                       {report.aiPriority
                         ? priorityLabel(report.aiPriority)
                         : "-"}
                     </p>
                   </div>
                   <div>
-                    <p className="text-zinc-500">Keyakinan</p>
-                    <p className="font-medium text-zinc-900">
+                    <p className="text-muted-foreground">Keyakinan</p>
+                    <p className="font-medium text-foreground">
                       {report.aiConfidence != null
                         ? `${Math.round(report.aiConfidence * 100)}%`
                         : "-"}
@@ -168,8 +168,8 @@ export default function ReportDetailCard({
 
                 {report.aiReason && (
                   <div>
-                    <p className="text-zinc-500 text-sm">Alasan AI</p>
-                    <p className="text-sm text-zinc-800">{report.aiReason}</p>
+                    <p className="text-muted-foreground text-sm">Alasan AI</p>
+                    <p className="text-sm text-foreground/90">{report.aiReason}</p>
                   </div>
                 )}
               </>
@@ -202,8 +202,8 @@ export default function ReportDetailCard({
             )}
 
             {beforeImages[0]?.aiImageAnalyzedAt && (
-              <div className="p-4 rounded-lg bg-zinc-50 border border-zinc-200 text-sm">
-                <p className="font-semibold text-zinc-800 mb-1">
+              <div className="p-4 rounded-lg bg-muted border border-zinc-200 text-sm">
+                <p className="font-semibold text-foreground/90 mb-1">
                   Analisis Foto
                 </p>
                 <p className="text-zinc-700">
@@ -211,7 +211,7 @@ export default function ReportDetailCard({
                     beforeImages[0].aiDescription ||
                     "-"}
                 </p>
-                <p className="text-xs text-zinc-500 mt-2">
+                <p className="text-xs text-muted-foreground mt-2">
                   Tingkat kerusakan: {beforeImages[0].aiSeverity || "-"} ·
                   Relevan: {beforeImages[0].aiIsRelevant ? "Ya" : "Tidak"} ·
                   Cocok judul: {beforeImages[0].aiImageMatchTitle ? "Ya" : "Tidak"}
@@ -224,7 +224,7 @@ export default function ReportDetailCard({
 
       {beforeImages.length > 0 && (
         <div className="bg-white rounded-xl border border-zinc-200 shadow-sm p-6">
-          <h2 className="text-lg font-bold text-zinc-900 mb-3">
+          <h2 className="text-lg font-bold text-foreground mb-3">
             Foto Kondisi
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -243,7 +243,7 @@ export default function ReportDetailCard({
 
       {afterImages.length > 0 && (
         <div className="bg-white rounded-xl border border-zinc-200 shadow-sm p-6">
-          <h2 className="text-lg font-bold text-zinc-900 mb-3">
+          <h2 className="text-lg font-bold text-foreground mb-3">
             Foto Setelah Perbaikan
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -261,17 +261,17 @@ export default function ReportDetailCard({
       )}
 
       <div className="bg-white rounded-xl border border-zinc-200 shadow-sm p-6">
-        <h2 className="text-lg font-bold text-zinc-900 mb-4">
+        <h2 className="text-lg font-bold text-foreground mb-4">
           Riwayat Status
         </h2>
         {report.reporthistory.length === 0 ? (
-          <p className="text-zinc-500">Belum ada riwayat.</p>
+          <p className="text-muted-foreground">Belum ada riwayat.</p>
         ) : (
           <ol className="relative border-l border-zinc-200 ml-2 space-y-5">
             {report.reporthistory.map((h) => (
               <li key={h.id} className="ml-5">
                 <span className="absolute -left-[7px] mt-1.5 h-3 w-3 rounded-full bg-blue-500 border-2 border-white" />
-                <p className="text-sm font-medium text-zinc-900">
+                <p className="text-sm font-medium text-foreground">
                   {statusLabel(h.newStatus)}
                   <span className="text-zinc-400 font-normal">
                     {" "}
