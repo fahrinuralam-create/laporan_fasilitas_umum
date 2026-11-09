@@ -57,7 +57,23 @@ export default function AdminReportActions({
       const res = await fetch(`/api/admin/reports/${reportId}/analyze`, {
         method: "POST",
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (data?.autoRejected) {
+        const detail =
+          typeof data.rejectionReason === "string"
+            ? data.rejectionReason.replace(
+                /^Laporan ditolak otomatis karena /,
+                ""
+              )
+            : "";
+        setAiMessage(
+          `Laporan otomatis ditolak karena ${
+            detail || "tidak memenuhi kriteria verifikasi"
+          }`
+        );
+        router.refresh();
+        return;
+      }
       if (!res.ok) {
         setError(data.error || "Analisis AI gagal");
         return;

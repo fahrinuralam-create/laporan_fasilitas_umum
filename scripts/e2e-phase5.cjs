@@ -105,27 +105,40 @@ function startMockAi() {
         }
         const serialized = JSON.stringify(payload.messages || []);
         const hasImage = serialized.includes("image_url");
-        const content = hasImage
+        const imageMismatch = serialized.includes("FOTO_TIDAK_COCOK");
+        const content = imageMismatch
           ? JSON.stringify({
-              category: "LAMPU_JALAN",
-              priority: "TINGGI",
-              confidence: 0.91,
-              reason: "Foto menunjukkan lampu penerangan jalan mati.",
-              isRelevant: true,
-              possibleDamage: "Lampu jalan mati total",
-              severity: "SEDANG",
-              matchesTitle: true,
-            })
-          : JSON.stringify({
-              category: "LAMPU_JALAN",
+              category: "JALAN",
               priority: "SEDANG",
-              confidence: 0.8,
-              reason: "Deskripsi menunjukkan lampu jalan mati.",
+              confidence: 0.95,
+              reason:
+                "Foto menunjukkan taman bunga, bukan kerusakan jalan yang dilaporkan.",
               isRelevant: true,
-              possibleDamage: "Lampu mati",
+              possibleDamage: "Tidak terlihat kerusakan jalan",
               severity: "RINGAN",
-              matchesTitle: true,
-            });
+              matchesTitle: false,
+            })
+          : hasImage
+            ? JSON.stringify({
+                category: "LAMPU_JALAN",
+                priority: "TINGGI",
+                confidence: 0.91,
+                reason: "Foto menunjukkan lampu penerangan jalan mati.",
+                isRelevant: true,
+                possibleDamage: "Lampu jalan mati total",
+                severity: "SEDANG",
+                matchesTitle: true,
+              })
+            : JSON.stringify({
+                category: "LAMPU_JALAN",
+                priority: "SEDANG",
+                confidence: 0.8,
+                reason: "Deskripsi menunjukkan lampu jalan mati.",
+                isRelevant: true,
+                possibleDamage: "Lampu mati",
+                severity: "RINGAN",
+                matchesTitle: true,
+              });
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ choices: [{ message: { content } }] }));
       });
@@ -146,13 +159,13 @@ function startMockAi() {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function createReport(jar, title, description) {
+async function createReport(jar, title, description, category = "LAMPU_JALAN") {
   const r = await api("/api/reports", jar, {
     method: "POST",
     body: JSON.stringify({
       title,
       description,
-      category: "LAMPU_JALAN",
+      category,
       address: "Jl. Uji Otomatis No. 5",
       latitude: "",
       longitude: "",
@@ -163,6 +176,23 @@ async function createReport(jar, title, description) {
     throw new Error("Gagal membuat laporan uji: " + r.raw);
   }
   return r.data;
+}
+
+async function waitForReport(jar, id, predicate, timeoutMs = 20000) {
+  const started = Date.now();
+  let last = null;
+  while (Date.now() - started < timeoutMs) {
+    const r = await api(`/api/reports/${id}`, jar);
+    if (r.status === 200) {
+      last = r.data;
+      if (predicate(last)) return last;
+    }
+    await sleep(250);
+  }
+  throw new Error(
+    `Timeout menunggu hasil otomatis untuk laporan ${id}: ` +
+      JSON.stringify(last)
+  );
 }
 
 async function webhookUpdate(chatId, text, username = "e2e5bot") {
@@ -243,10 +273,14 @@ async function main() {
       throw new Error("Prioritas AI salah: " + r.raw);
     if (r.data.usedVision !== true)
       throw new Error("Analisis foto seharusnya memakai model vision");
+    if (r.data.autoRejected === true)
+      throw new Error("Laporan pertama tidak boleh ditolak otomatis: " + r.raw);
     console.log("3. analisis AI (vision) ok: LAMPU_JALAN / TINGGI / 91%");
 
     // Cek tersimpan di laporan & gambar
     r = await api(`/api/reports/${report1.id}`, wargaJar);
+    if (r.data.status === "DITOLAK")
+      throw new Error("Laporan pertama tidak boleh ditolak otomatis");
     if (!r.data.aiAnalyzedAt) throw new Error("aiAnalyzedAt tidak tersimpan");
     if (r.data.aiCategory !== "LAMPU_JALAN") throw new Error("aiCategory salah");
     if (!r.data.reportimage?.[0]?.aiImageAnalyzedAt)
@@ -259,27 +293,118 @@ async function main() {
       );
     console.log("4. field AI laporan & gambar tersimpan ok (prioritas otomatis TINGGI)");
 
-    // Laporan kedua identik -> harus terdeteksi duplikat
+    // Laporan kedua identik -> harus otomatis ditolak sebagai duplikat
     const report2 = await createReport(wargaJar, title, description);
     createdReportIds.push(report2.id);
+    const rejected2 = await waitForReport(
+      wargaJar,
+      report2.id,
+      (value) => value.status === "DITOLAK" && value.aiIsDuplicate === true
+    );
+    if (rejected2.aiDuplicateOfId !== report1.id)
+      throw new Error("aiDuplicateOfId salah: " + JSON.stringify(rejected2));
+    if (rejected2.aiAutoRejected !== true)
+      throw new Error(
+        "aiAutoRejected tidak diset: " + JSON.stringify(rejected2)
+      );
+    if (
+      !String(rejected2.aiRejectionReason || "")
+        .toLowerCase()
+        .includes("duplikat")
+    )
+      throw new Error(
+        "Alasan penolakan duplikat tidak jelas: " + JSON.stringify(rejected2)
+      );
+
+    const dupHistory = await prisma.reporthistory.findFirst({
+      where: { reportId: report2.id, newStatus: "DITOLAK" },
+      orderBy: { createdAt: "desc" },
+    });
+    if (!dupHistory?.notes?.startsWith("[SISTEM AI]"))
+      throw new Error(
+        "Riwayat penolakan sistem tidak dibuat: " + JSON.stringify(dupHistory)
+      );
+    const dupNotification = await prisma.notification.findFirst({
+      where: { reportId: report2.id, title: "Laporan Ditolak Otomatis" },
+    });
+    if (!dupNotification)
+      throw new Error("Notifikasi penolakan otomatis tidak dibuat");
+    console.log("5. duplikat otomatis ditolak + riwayat/notifikasi ok");
+
+    // Analisis ulang tidak boleh membuat penolakan/notifikasi ganda
     r = await api(`/api/admin/reports/${report2.id}/analyze`, adminJar, {
       method: "POST",
     });
-    if (r.status !== 200) throw new Error("Analisis laporan 2 gagal: " + r.raw);
-    if (!r.data.duplicate || r.data.duplicate.id !== report1.id)
-      throw new Error("Duplikat tidak terdeteksi: " + r.raw);
+    if (r.status !== 200)
+      throw new Error("Analisis ulang laporan duplikat gagal: " + r.raw);
+    const dupHistoryCount = await prisma.reporthistory.count({
+      where: { reportId: report2.id, newStatus: "DITOLAK" },
+    });
+    const dupNotificationCount = await prisma.notification.count({
+      where: { reportId: report2.id, title: "Laporan Ditolak Otomatis" },
+    });
+    if (dupHistoryCount !== 1 || dupNotificationCount !== 1)
+      throw new Error(
+        `Penolakan ganda: riwayat=${dupHistoryCount}, notifikasi=${dupNotificationCount}`
+      );
+    console.log("6. analisis ulang tidak membuat penolakan ganda");
 
-    r = await api(`/api/reports/${report2.id}`, wargaJar);
-    if (r.data.aiIsDuplicate !== true) throw new Error("aiIsDuplicate salah");
-    if (r.data.aiDuplicateOfId !== report1.id)
-      throw new Error("aiDuplicateOfId salah");
-    console.log("5. deteksi duplikat ok (menunjuk laporan pertama)");
+    // Laporan dengan foto yang jelas tidak sesuai -> otomatis ditolak
+    const mismatchTitle = `E2E5 jalan gang melati ${suffix}`;
+    const mismatchDescription =
+      "Laporan jalan berlubang di Gang Melati. FOTO_TIDAK_COCOK: foto yang dikirim bukan kerusakan jalan.";
+    const report3 = await createReport(
+      wargaJar,
+      mismatchTitle,
+      mismatchDescription,
+      "JALAN"
+    );
+    createdReportIds.push(report3.id);
+    const rejected3 = await waitForReport(
+      wargaJar,
+      report3.id,
+      (value) =>
+        value.status === "DITOLAK" &&
+        value.aiAutoRejected === true &&
+        (value.reportimage || []).some(
+          (img) => img.type === "BEFORE" && img.aiImageMatchTitle === false
+        )
+    );
+    if (
+      !String(rejected3.aiRejectionReason || "")
+        .toLowerCase()
+        .includes("foto")
+    )
+      throw new Error(
+        "Alasan foto tidak sesuai tidak jelas: " + JSON.stringify(rejected3)
+      );
+    const mismatchImage = (rejected3.reportimage || []).find(
+      (img) => img.type === "BEFORE"
+    );
+    if (!mismatchImage || mismatchImage.aiImageMatchTitle !== false)
+      throw new Error(
+        "aiImageMatchTitle tidak false: " + JSON.stringify(mismatchImage)
+      );
+    const mismatchHistory = await prisma.reporthistory.findFirst({
+      where: { reportId: report3.id, newStatus: "DITOLAK" },
+      orderBy: { createdAt: "desc" },
+    });
+    if (!mismatchHistory?.notes?.startsWith("[SISTEM AI]"))
+      throw new Error("Riwayat penolakan foto tidak dibuat");
+    const mismatchNotification = await prisma.notification.findFirst({
+      where: { reportId: report3.id, title: "Laporan Ditolak Otomatis" },
+    });
+    if (!mismatchNotification)
+      throw new Error("Notifikasi penolakan foto tidak dibuat");
+    console.log(
+      "7. foto tidak sesuai otomatis ditolak + riwayat/notifikasi ok"
+    );
 
     // Status Telegram awal
     r = await api("/api/telegram/link", wargaJar);
     if (r.status !== 200 || r.data.linked !== false)
       throw new Error("Status Telegram awal salah: " + r.raw);
-    console.log("6. status Telegram awal: belum tertaut");
+    console.log("8. status Telegram awal: belum tertaut");
 
     // Buat token & tautkan via webhook
     r = await api("/api/telegram/link", wargaJar, { method: "POST" });
@@ -299,7 +424,7 @@ async function main() {
       where: { token },
     });
     if (!tokenRow?.usedAt) throw new Error("Token tidak ditandai terpakai");
-    console.log("7. penautan via webhook /start ok (token sekali pakai)");
+    console.log("9. penautan via webhook /start ok (token sekali pakai)");
 
     // Perintah bot
     for (const command of [
@@ -313,7 +438,7 @@ async function main() {
       if (r.status !== 200)
         throw new Error(`Perintah ${command} gagal: ` + r.raw);
     }
-    console.log("8. perintah bot /status /laporan /cek /lapor /bantuan ok");
+    console.log("10. perintah bot /status /laporan /cek /lapor /bantuan ok");
 
     // Toggle & unlink
     r = await api("/api/telegram/link", wargaJar, {
@@ -331,7 +456,7 @@ async function main() {
 
     r = await api("/api/telegram/link", wargaJar);
     if (r.data.linked !== false) throw new Error("Masih tertaut setelah unlink");
-    console.log("9. toggle & putus tautan Telegram ok");
+    console.log("11. toggle & putus tautan Telegram ok");
 
     // Admin telegram & otorisasi
     r = await api("/api/admin/telegram", adminJar);
@@ -345,7 +470,7 @@ async function main() {
     r = await api("/api/admin/telegram", wargaJar);
     if (r.status !== 403)
       throw new Error("Non-admin seharusnya 403, dapat " + r.status);
-    console.log("10. status admin Telegram & otorisasi ok");
+    console.log("12. status admin Telegram & otorisasi ok");
 
     // Alur verifikasi + penugasan tetap berjalan & notifikasi petugas dibuat
     const petugas = await prisma.user.findUnique({
@@ -374,7 +499,7 @@ async function main() {
     });
     if (!officerNotification)
       throw new Error("Notifikasi petugas tidak dibuat saat penugasan");
-    console.log("11. alur verifikasi/penugasan & notifikasi petugas ok");
+    console.log("13. alur verifikasi/penugasan & notifikasi petugas ok");
 
     await sleep(1200);
   } finally {
@@ -420,7 +545,7 @@ async function main() {
     });
 
     mock.server.close();
-    console.log("12. data uji dibersihkan & konfigurasi AI dipulihkan");
+    console.log("14. data uji dibersihkan & konfigurasi AI dipulihkan");
   }
 
   console.log("\nE2E PHASE 5 PASSED");

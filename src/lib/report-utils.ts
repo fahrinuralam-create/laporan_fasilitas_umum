@@ -53,6 +53,23 @@ export function statusLabel(value: string): string {
   return REPORT_STATUSES.find((s) => s.value === value)?.label ?? value;
 }
 
+/**
+ * Riwayat yang dibuat otomatis oleh sistem memakai awalan ini agar UI dapat
+ * menampilkan aktor "Sistem AI" tanpa perlu mengubah skema database.
+ */
+export const SYSTEM_ACTOR_NOTE_PREFIX = "[SISTEM AI]";
+
+export function isSystemActorNote(notes?: string | null): boolean {
+  return Boolean(notes?.startsWith(SYSTEM_ACTOR_NOTE_PREFIX));
+}
+
+export function cleanHistoryNotes(notes?: string | null): string {
+  if (!notes) return "";
+  return isSystemActorNote(notes)
+    ? notes.slice(SYSTEM_ACTOR_NOTE_PREFIX.length).trim()
+    : notes;
+}
+
 export function statusColor(value: string): string {
   switch (value) {
     case "DIAJUKAN":

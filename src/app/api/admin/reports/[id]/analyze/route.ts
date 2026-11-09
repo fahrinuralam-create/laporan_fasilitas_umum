@@ -19,28 +19,43 @@ export async function POST(
   try {
     const result = await analyzeReportById(id);
 
+    const autoRejected = result.autoRejected === true;
+    const rejectionReason = result.rejectionReason ?? null;
+
     if (result.skipped) {
       return NextResponse.json(
-        { error: result.error, skipped: true, duplicate: result.duplicate },
-        { status: 400 }
+        {
+          ok: false,
+          error: result.error,
+          skipped: true,
+          duplicate: result.duplicate,
+          autoRejected,
+          rejectionReason,
+        },
+        { status: autoRejected ? 200 : 400 }
       );
     }
 
-    if (!result.ok) {
+    if (!result.ok && !autoRejected) {
       return NextResponse.json(
         {
+          ok: false,
           error: result.error || "Analisis AI gagal",
           duplicate: result.duplicate,
+          autoRejected,
+          rejectionReason,
         },
         { status: 502 }
       );
     }
 
     return NextResponse.json({
-      ok: true,
+      ok: result.ok,
       usedVision: result.usedVision,
       analysis: result.analysis,
       duplicate: result.duplicate,
+      autoRejected,
+      rejectionReason,
     });
   } catch (error) {
     const message =

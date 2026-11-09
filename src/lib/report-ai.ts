@@ -12,7 +12,12 @@ import {
   extractJson,
 } from "@/lib/ai-client";
 import { getResolvedAiConfig } from "@/lib/ai-config";
+import { autoRejectReport } from "@/lib/report-workflow";
 import type { ReportCategory, ReportPriority } from "@/lib/report-utils";
+
+const AUTO_REJECT_CONFIDENCE = 0.7;
+const AUTO_REJECT_DUPLICATE_TEXT_SCORE = 0.6;
+const AUTO_REJECT_DUPLICATE_SCORE = 0.75;
 
 const SYSTEM_PROMPT =
   "Anda adalah asisten triase laporan kerusakan fasilitas publik di Indonesia. " +
@@ -83,6 +88,8 @@ export type DuplicateMatch = {
   id: string;
   reportNumber: string;
   title: string;
+  reporterId: string;
+  status: string;
   score: number;
   textScore: number;
   distanceMeters: number | null;
@@ -96,6 +103,8 @@ export type AnalyzeReportResult = {
   usedVision?: boolean;
   analysis?: AiAnalysis | null;
   duplicate?: DuplicateMatch | null;
+  autoRejected?: boolean;
+  rejectionReason?: string | null;
 };
 
 function normalizeEnum(value: unknown): string {
@@ -161,7 +170,10 @@ function buildPrompt(report: {
     "",
     "Aturan:",
     "- isRelevant=false hanya jika foto/laporan jelas tidak berkaitan dengan fasilitas publik atau jelas bukan kerusakan.",
-    "- matchesTitle=false jika foto tidak cocok dengan judul/deskripsi.",
+    "- Jika ada foto, matchesTitle=false hanya jika isi foto jelas tidak sesuai dengan judul/deskripsi, misalnya foto objek lain, foto suasana, atau bukan kerusakan yang dimaksud.",
+    "- Jika tidak ada foto, matchesTitle=true.",
+    "- Jangan menilai matchesTitle=false hanya karena foto kurang jelas, gelap, atau sudut pengambilan kurang baik.",
+    "- reason harus singkat, spesifik, dan mudah dipahami pelapor.",
     "- DARURAT hanya untuk kondisi yang mengancam keselamatan jiwa.",
     "- Jangan mengubah fakta; nilai hanya berdasarkan isi laporan dan foto.",
   ].join("\n");
@@ -270,12 +282,13 @@ export async function findDuplicateReport(report: {
   latitude: number | null;
   longitude: number | null;
   reporterId: string;
+  createdAt: Date;
 }): Promise<DuplicateMatch | null> {
   const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
   const candidates = await prisma.report.findMany({
     where: {
       id: { not: report.id },
-      createdAt: { gte: since },
+      createdAt: { gte: since, lte: report.createdAt },
       status: { not: "DITOLAK" },
     },
     select: {
@@ -287,6 +300,8 @@ export async function findDuplicateReport(report: {
       latitude: true,
       longitude: true,
       reporterId: true,
+      status: true,
+      createdAt: true,
     },
     orderBy: { createdAt: "desc" },
     take: 200,
@@ -296,6 +311,14 @@ export async function findDuplicateReport(report: {
   let best: DuplicateMatch | null = null;
 
   for (const candidate of candidates) {
+    // Hanya bandingkan dengan laporan yang dibuat lebih dulu. Ini mencegah dua
+    // laporan identik yang dibuat hampir bersamaan saling menolak.
+    const earlier =
+      candidate.createdAt.getTime() < report.createdAt.getTime() ||
+      (candidate.createdAt.getTime() === report.createdAt.getTime() &&
+        candidate.id < report.id);
+    if (!earlier) continue;
+
     const textScore = jaccard(
       newTokens,
       tokenize(`${candidate.title} ${candidate.description}`)
@@ -322,16 +345,23 @@ export async function findDuplicateReport(report: {
 
     const distanceText =
       distance !== null ? `, berjarak ${Math.round(distance)} m` : "";
+    // Jangan bocorkan judul laporan milik pengguna lain ke pelapor.
+    const titleText =
+      candidate.reporterId === report.reporterId
+        ? ` ("${candidate.title}")`
+        : "";
     best = {
       id: candidate.id,
       reportNumber: candidate.reportNumber,
       title: candidate.title,
+      reporterId: candidate.reporterId,
+      status: candidate.status,
       score,
       textScore,
       distanceMeters: distance,
       reason: `Kemiripan ${Math.round(textScore * 100)}% dengan laporan ${
         candidate.reportNumber
-      } ("${candidate.title}")${distanceText}.`,
+      }${titleText}${distanceText}.`,
     };
   }
 
@@ -340,8 +370,8 @@ export async function findDuplicateReport(report: {
 
 /**
  * Menjalankan analisis AI untuk satu laporan, menyimpan saran kategori,
- * prioritas, analisis foto, dan deteksi duplikat. Tidak mengubah kategori,
- * prioritas, atau status utama laporan (hanya field ai*).
+ * prioritas, analisis foto, dan deteksi duplikat. Laporan dapat ditolak
+ * otomatis bila terindikasi duplikat kuat atau fotonya jelas tidak sesuai.
  */
 export async function analyzeReportById(
   reportId: string
@@ -371,22 +401,15 @@ export async function analyzeReportById(
       latitude: report.latitude,
       longitude: report.longitude,
       reporterId: report.reporterId,
+      createdAt: report.createdAt,
     }),
   ]);
 
   const image = report.reportimage[0] ?? null;
   const canUseVision = Boolean(image && config.vision.apiKey);
   const canUseText = Boolean(config.text.apiKey);
-
-  if (!canUseVision && !canUseText) {
-    return {
-      ok: false,
-      skipped: true,
-      error:
-        "AI belum dikonfigurasi. Atur API key di Admin > Konfigurasi AI terlebih dahulu.",
-      duplicate,
-    };
-  }
+  const aiConfigured = canUseVision || canUseText;
+  let skipped = !aiConfigured;
 
   const prompt = buildPrompt({
     title: report.title,
@@ -398,43 +421,97 @@ export async function analyzeReportById(
   });
 
   let analysis: AiAnalysis | null = null;
-  let aiError: string | null = null;
+  let aiError: string | null = aiConfigured
+    ? null
+    : "AI belum dikonfigurasi. Atur API key di Admin > Konfigurasi AI terlebih dahulu.";
   const usedVision = canUseVision;
 
-  try {
-    const raw = canUseVision
-      ? await aiChatWithImage(
-          SYSTEM_PROMPT,
-          prompt,
-          image!.imageUrl,
-          { temperature: 0.1, maxTokens: 900 }
-        )
-      : await aiChatText(SYSTEM_PROMPT, prompt, {
-          temperature: 0.1,
-          maxTokens: 900,
-        });
+  if (aiConfigured) {
+    try {
+      const raw = canUseVision
+        ? await aiChatWithImage(SYSTEM_PROMPT, prompt, image!.imageUrl, {
+            temperature: 0.1,
+            maxTokens: 900,
+          })
+        : await aiChatText(SYSTEM_PROMPT, prompt, {
+            temperature: 0.1,
+            maxTokens: 900,
+          });
 
-    const parsed = extractJson(raw);
-    if (!parsed) {
-      aiError = "Respons AI bukan JSON yang valid.";
-    } else {
-      analysis = normalizeAnalysis(
-        parsed,
-        report.category as ReportCategory,
-        report.priority as ReportPriority
+      const parsed = extractJson(raw);
+      if (!parsed) {
+        aiError = "Respons AI bukan JSON yang valid.";
+      } else {
+        analysis = normalizeAnalysis(
+          parsed,
+          report.category as ReportCategory,
+          report.priority as ReportPriority
+        );
+      }
+    } catch (error) {
+      if (error instanceof AiNotConfiguredError) {
+        skipped = true;
+        aiError = error.message;
+      } else {
+        aiError = (error as Error).message || "Gagal menganalisis laporan.";
+      }
+    }
+  }
+
+  // Duplikat hanya ditolak otomatis jika keyakinannya tinggi. Laporan yang
+  // mirip tetapi belum kuat tetap ditandai untuk ditinjau admin.
+  const duplicateAutoReject = Boolean(
+    duplicate &&
+      duplicate.status !== "SELESAI" &&
+      duplicate.textScore >= AUTO_REJECT_DUPLICATE_TEXT_SCORE &&
+      duplicate.score >= AUTO_REJECT_DUPLICATE_SCORE
+  );
+
+  const irrelevant = Boolean(
+    analysis &&
+      analysis.confidence >= AUTO_REJECT_CONFIDENCE &&
+      analysis.isRelevant === false
+  );
+  const imageMismatch = Boolean(
+    analysis &&
+      image &&
+      canUseVision &&
+      analysis.confidence >= AUTO_REJECT_CONFIDENCE &&
+      analysis.matchesTitle === false
+  );
+  const aiViolation = irrelevant || imageMismatch;
+
+  const rejectionParts: string[] = [];
+  if (duplicateAutoReject && duplicate) {
+    rejectionParts.push(
+      `terindikasi duplikat dengan laporan ${duplicate.reportNumber} ` +
+        `(kemiripan teks ${Math.round(
+          duplicate.textScore * 100
+        )}%, skor ${Math.round(duplicate.score * 100)}%)`
+    );
+  }
+  if (aiViolation && analysis) {
+    const problems: string[] = [];
+    if (analysis.isRelevant === false) {
+      problems.push(
+        "foto/laporan tidak relevan dengan fasilitas publik atau bukan kerusakan"
       );
     }
-  } catch (error) {
-    if (error instanceof AiNotConfiguredError) {
-      return {
-        ok: false,
-        skipped: true,
-        error: error.message,
-        duplicate,
-      };
+    if (imageMismatch) {
+      problems.push("foto tidak sesuai dengan judul/deskripsi laporan");
     }
-    aiError = (error as Error).message || "Gagal menganalisis laporan.";
+    rejectionParts.push(
+      `${problems.join(" dan ")} (keyakinan AI ${Math.round(
+        analysis.confidence * 100
+      )}%: ${analysis.reason})`
+    );
   }
+
+  const reasonDetail = rejectionParts.join("; ");
+  const shouldAutoReject = rejectionParts.length > 0;
+  const rejectionReason = shouldAutoReject
+    ? `Laporan ditolak otomatis karena ${reasonDetail}.`
+    : null;
 
   const now = new Date();
   const updateData: Prisma.reportUncheckedUpdateInput = {
@@ -444,17 +521,11 @@ export async function analyzeReportById(
   };
 
   if (analysis) {
-    const autoRejected =
-      analysis.isRelevant === false && analysis.confidence >= 0.7;
     updateData.aiAnalyzedAt = now;
     updateData.aiCategory = analysis.category as report_aiCategory;
     updateData.aiPriority = analysis.priority as report_aiPriority;
     updateData.aiConfidence = analysis.confidence;
     updateData.aiReason = analysis.reason;
-    updateData.aiAutoRejected = autoRejected;
-    updateData.aiRejectionReason = autoRejected
-      ? `AI menilai laporan/foto tidak relevan: ${analysis.reason}`
-      : null;
 
     // Sebelum diverifikasi, prioritas utama juga ditentukan otomatis oleh AI.
     if (report.status === "DIAJUKAN") {
@@ -462,9 +533,37 @@ export async function analyzeReportById(
     }
   }
 
-  await prisma.report.update({ where: { id: report.id }, data: updateData });
+  // Hanya timpa flag penolakan jika ada hasil AI baru atau pelanggaran baru.
+  if (analysis || shouldAutoReject) {
+    updateData.aiAutoRejected = shouldAutoReject;
+    updateData.aiRejectionReason = rejectionReason;
+  }
+
+  let autoRejected = false;
+  if (shouldAutoReject && rejectionReason) {
+    const result = await autoRejectReport({
+      reportId: report.id,
+      actorId: report.reporterId,
+      reasonDetail,
+      extraData: updateData,
+    });
+    autoRejected = result.rejected;
+
+    if (!result.rejected) {
+      // Status sudah berubah (mis. sedang diproses) atau proses lain menang;
+      // simpan hasil analisis tanpa mengubah status.
+      await prisma.report.update({
+        where: { id: report.id },
+        data: updateData,
+      });
+    }
+  } else {
+    await prisma.report.update({ where: { id: report.id }, data: updateData });
+  }
 
   if (analysis && image) {
+    const imageMismatchForVision =
+      canUseVision && analysis.matchesTitle === false;
     await prisma.reportimage.update({
       where: { id: image.id },
       data: {
@@ -475,16 +574,22 @@ export async function analyzeReportById(
         aiPossibleDamage: analysis.possibleDamage,
         aiSeverity: analysis.severity,
         aiImageMatchTitle: analysis.matchesTitle,
-        aiRejectionReason: analysis.isRelevant ? null : analysis.reason,
+        aiRejectionReason:
+          analysis.isRelevant && !imageMismatchForVision
+            ? null
+            : analysis.reason,
       },
     });
   }
 
   return {
     ok: Boolean(analysis),
+    skipped,
     error: aiError,
     usedVision,
     analysis,
     duplicate,
+    autoRejected,
+    rejectionReason,
   };
 }

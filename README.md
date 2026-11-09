@@ -87,6 +87,20 @@ memastikan konfigurasi benar.
 Analisis AI berjalan otomatis di latar belakang saat laporan dibuat, dan dapat
 dijalankan ulang lewat tombol **Analisis AI** di detail laporan admin.
 
+Laporan baru dapat **ditolak otomatis** bila:
+
+- terindikasi duplikat kuat dengan laporan lain yang masih aktif (kemiripan
+  teks dan/atau lokasi tinggi), atau
+- foto kondisi jelas tidak sesuai dengan judul/deskripsi laporan dan model
+  vision yakin (keyakinan minimal 70%).
+
+Penolakan otomatis hanya berlaku untuk laporan berstatus **Diajukan** atau
+**Diverifikasi**. Laporan yang sudah ditugaskan/diproses tidak diubah statusnya.
+Duplikat dengan kemiripan sedang tetap ditandai sebagai "Kemungkinan Duplikat"
+untuk ditinjau admin, bukan langsung ditolak, agar tidak salah menolak laporan
+yang sah. Pelapor menerima riwayat status, notifikasi in-app, dan notifikasi
+Telegram (jika tertaut) berisi alasan penolakan.
+
 Model teks yang dikonfigurasi juga dipakai oleh chatbot in-app **SiLapor**
 untuk pertanyaan yang bersifat terbuka.
 

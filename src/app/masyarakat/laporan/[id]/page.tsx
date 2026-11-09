@@ -4,7 +4,9 @@ import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
 import {
   categoryLabel,
+  cleanHistoryNotes,
   formatDateTime,
+  isSystemActorNote,
   priorityColor,
   priorityLabel,
   statusColor,
@@ -126,10 +128,13 @@ export default async function LaporanDetailPage({
         {rejection && (
           <div className="mt-5 p-4 rounded-lg bg-red-50 border border-red-200">
             <p className="text-sm font-semibold text-red-700">
-              Laporan Ditolak
+              {isSystemActorNote(rejection.notes)
+                ? "Laporan Ditolak Otomatis"
+                : "Laporan Ditolak"}
             </p>
             <p className="text-sm text-red-700 mt-1">
-              {rejection.notes || "Laporan ditolak oleh admin."}
+              {cleanHistoryNotes(rejection.notes) ||
+                "Laporan ditolak oleh admin."}
             </p>
           </div>
         )}
@@ -191,11 +196,16 @@ export default async function LaporanDetailPage({
                     · {formatDateTime(h.createdAt)}
                   </span>
                 </p>
-                {h.notes && (
-                  <p className="text-sm text-zinc-600 mt-0.5">{h.notes}</p>
+                {cleanHistoryNotes(h.notes) && (
+                  <p className="text-sm text-zinc-600 mt-0.5">
+                    {cleanHistoryNotes(h.notes)}
+                  </p>
                 )}
                 <p className="text-xs text-zinc-400 mt-0.5">
-                  oleh {h.user.name || h.user.role}
+                  oleh{" "}
+                  {isSystemActorNote(h.notes)
+                    ? "Sistem AI"
+                    : h.user.name || h.user.role}
                 </p>
               </li>
             ))}

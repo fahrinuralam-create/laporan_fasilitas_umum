@@ -5,7 +5,9 @@ import {
 } from "@/lib/ai-client";
 import {
   categoryLabel,
+  cleanHistoryNotes,
   formatDateTime,
+  isSystemActorNote,
   priorityLabel,
   statusLabel,
   type ReportStatus,
@@ -116,7 +118,7 @@ const STATUS_MEANINGS: Record<ReportStatus, string> = {
   DIPROSES: "petugas sedang mengerjakan perbaikan.",
   SELESAI: "perbaikan selesai dan laporan ditutup.",
   DITOLAK:
-    "laporan tidak dapat diproses. Alasan penolakan dapat dilihat pada riwayat laporan.",
+    "laporan tidak dapat diproses, bisa karena ditolak admin atau otomatis oleh sistem (terindikasi duplikat/foto tidak sesuai). Alasan penolakan dapat dilihat pada riwayat laporan.",
 };
 
 const SYSTEM_KNOWLEDGE = `Aplikasi "Pelaporan Fasilitas" adalah sistem pelaporan kerusakan fasilitas publik.
@@ -126,6 +128,7 @@ Peran pengguna:
 - ADMIN: memverifikasi/menolak laporan, menugaskan petugas, mengelola konfigurasi AI dan bot Telegram.
 Alur status: DIAJUKAN -> DIVERIFIKASI -> DITUGASKAN -> DIPROSES -> SELESAI, atau DITOLAK.
 Prioritas ditentukan otomatis (RENDAH/SEDANG/TINGGI/DARURAT) dari kategori dan isi laporan; AI dapat menyempurnakan selama status masih DIAJUKAN.
+Sistem dapat menolak otomatis laporan baru yang terindikasi duplikat kuat atau yang fotonya jelas tidak sesuai dengan judul/deskripsi laporan.
 Cara membuat laporan: menu "Laporan Saya" -> "+ Buat Laporan"; isi judul, deskripsi, kategori, alamat/koordinat; foto bersifat opsional; prioritas otomatis; klik "Kirim Laporan"; nomor laporan berformat REP-YYYYMMDD-XXXX.
 Notifikasi: menu "Notifikasi" di aplikasi; jika Telegram tertaut, notifikasi juga dikirim ke Telegram.
 Telegram: menu "Pengaturan Telegram" -> "Buat Kode Tautan" -> kirim /start <kode> ke bot -> "Cek Status". Perintah bot: /status, /laporan, /cek REP-..., /lapor, /bantuan.
@@ -382,9 +385,11 @@ export async function findReportForUser(
     updatedAt: report.updatedAt,
     verifiedAt: report.verifiedAt,
     completedAt: report.completedAt,
-    lastHistoryNote: lastHistory?.notes ?? null,
+    lastHistoryNote: cleanHistoryNotes(lastHistory?.notes) || null,
     lastHistoryAt: lastHistory?.createdAt ?? null,
-    lastHistoryBy: lastHistory?.user.name ?? null,
+    lastHistoryBy: isSystemActorNote(lastHistory?.notes)
+      ? "Sistem AI"
+      : lastHistory?.user.name ?? null,
   };
 }
 
