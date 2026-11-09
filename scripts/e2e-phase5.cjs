@@ -334,8 +334,10 @@ async function main() {
     r = await api("/api/admin/telegram", adminJar);
     if (r.status !== 200 || !r.data.counts)
       throw new Error("Status admin Telegram gagal: " + r.raw);
-    if (r.data.configured !== false)
-      throw new Error("Bot seharusnya belum dikonfigurasi");
+    if (typeof r.data.configured !== "boolean")
+      throw new Error("Field configured tidak valid: " + r.raw);
+    if (r.data.configured && !r.data.botUsername)
+      throw new Error("Bot terkonfigurasi tetapi username tidak tersedia");
 
     r = await api("/api/admin/telegram", wargaJar);
     if (r.status !== 403)

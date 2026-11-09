@@ -92,6 +92,26 @@ export default function TelegramAdminPanel({
         </div>
       )}
 
+      {!initial.webhook.result?.url && (
+        <div className="p-4 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800 space-y-2">
+          <p className="font-semibold">Webhook belum aktif.</p>
+          <p>
+            Saat aplikasi berjalan di komputer lokal, Telegram tidak dapat
+            memanggil <code>localhost</code>. Gunakan <b>mode polling</b>:
+            jalankan perintah berikut di terminal terpisah saat{" "}
+            <code>npm run dev</code> aktif.
+          </p>
+          <code className="block px-3 py-2 rounded-md bg-white border border-amber-200 text-amber-900">
+            npm run telegram:poll
+          </code>
+          <p>
+            Polling akan menonaktifkan webhook secara otomatis dan meneruskan
+            pesan Telegram ke aplikasi. Untuk produksi dengan domain HTTPS
+            publik, gunakan tombol &quot;Atur Webhook&quot;.
+          </p>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((stat) => (
           <div

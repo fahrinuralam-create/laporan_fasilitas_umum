@@ -1,36 +1,98 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Pelaporan Fasilitas
 
-## Getting Started
+Aplikasi pelaporan kerusakan fasilitas publik berbasis Next.js 16, Prisma, dan MySQL.
 
-First, run the development server:
+## Fitur
+
+- Autentikasi & peran: **ADMIN**, **PETUGAS**, **MASYARAKAT**
+- Laporan masyarakat: buat, foto kondisi, lokasi, riwayat, notifikasi
+- Alur kerja admin & petugas: verifikasi, penugasan, proses, selesai, tolak
+- Konfigurasi AI (provider, model teks/vision, API key terenkripsi)
+- Analisis AI otomatis + manual (kategori, prioritas, relevansi foto, duplikat)
+- Notifikasi & chatbot Telegram
+
+## Menjalankan
 
 ```bash
+npm install
+npx prisma generate
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Buka http://localhost:3000.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Salin `.env.example` menjadi `.env`, lalu sesuaikan:
 
-## Learn More
+```env
+DATABASE_URL="mysql://root:@localhost:3306/pelaporan_fasilitas"
+NEXTAUTH_SECRET="string-acak-panjang"
+NEXTAUTH_URL="http://localhost:3000"
+NEXT_PUBLIC_APP_URL="http://localhost:3000"
 
-To learn more about Next.js, take a look at the following resources:
+# AI (opsional, dapat diatur dari Admin > Konfigurasi AI)
+NVIDIA_API_KEY=""
+AI_CONFIG_ENCRYPTION_KEY=""
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+# Telegram
+TELEGRAM_BOT_TOKEN=""
+TELEGRAM_BOT_USERNAME=""
+TELEGRAM_WEBHOOK_SECRET=""
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+> **Penting:** database ini berisi data lama. Jangan menjalankan
+> `prisma migrate reset` atau `prisma db push` pada database yang sudah terisi.
 
-## Deploy on Vercel
+## Telegram
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Pengembangan lokal (tanpa domain publik)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Telegram tidak dapat memanggil `http://localhost`, sehingga webhook tidak bisa
+digunakan saat aplikasi berjalan di komputer lokal. Gunakan **mode polling**:
+
+```bash
+# terminal 1
+npm run dev
+
+# terminal 2
+npm run telegram:poll
+```
+
+Poller mengambil pesan dari Telegram (`getUpdates`) dan meneruskannya ke route
+webhook lokal. Setelah itu:
+
+1. Buka `/pengaturan/telegram` dan klik **Buat Kode Tautan**.
+2. Kirim perintah `/start <kode>` ke bot Telegram.
+3. Klik **Cek Status** — akun akan tertaut.
+4. Coba perintah `/status`, `/laporan`, `/cek REP-...`, `/lapor`, `/bantuan`.
+
+### Produksi (domain HTTPS publik)
+
+1. Isi `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`, dan
+   `TELEGRAM_WEBHOOK_SECRET` di `.env`.
+2. Set `NEXT_PUBLIC_APP_URL` ke domain HTTPS publik.
+3. Restart server, lalu buka **Admin > Bot Telegram** dan klik **Atur Webhook**.
+4. Hentikan `npm run telegram:poll` jika sebelumnya digunakan (webhook dan
+   polling tidak boleh aktif bersamaan).
+
+## AI
+
+Atur provider, base URL, model teks/vision, dan API key di
+**Admin > Konfigurasi AI**. API key disimpan terenkripsi (AES-256-GCM) dan
+hanya ditampilkan dalam bentuk masking. Gunakan tombol **Uji Koneksi** untuk
+memastikan konfigurasi benar.
+
+Analisis AI berjalan otomatis di latar belakang saat laporan dibuat, dan dapat
+dijalankan ulang lewat tombol **Analisis AI** di detail laporan admin.
+
+## Scripts
+
+| Perintah | Fungsi |
+|---|---|
+| `npm run dev` | Menjalankan server pengembangan |
+| `npm run build` | Build produksi |
+| `npm run start` | Menjalankan hasil build |
+| `npm run telegram:poll` | Mode polling Telegram untuk lokal |
+| `npm run db:check` | Menampilkan jumlah data database |
+| `npm run db:studio` | Prisma Studio |

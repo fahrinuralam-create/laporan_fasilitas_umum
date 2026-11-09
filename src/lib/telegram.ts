@@ -1,4 +1,5 @@
-const TELEGRAM_API = "https://api.telegram.org";
+import https from "https";
+
 
 export type TelegramApiResult<T = unknown> = {
   ok: boolean;
@@ -51,41 +52,88 @@ async function callTelegram<T = unknown>(
     return { ok: false, error: "TELEGRAM_BOT_TOKEN belum diatur" };
   }
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const body = JSON.stringify(payload ?? {});
 
-  try {
-    const res = await fetch(`${TELEGRAM_API}/bot${token}/${method}`, {
+  return new Promise((resolve) => {
+    let timedOut = false;
+
+    type TelegramRequestOptions = https.RequestOptions & {
+      autoSelectFamily?: boolean;
+      autoSelectFamilyAttemptTimeout?: number;
+    };
+
+    const options: TelegramRequestOptions = {
+      hostname: "api.telegram.org",
+      path: `/bot${token}/${method}`,
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-      cache: "no-store",
+      // Di sebagian jaringan IPv4 diblokir; autoSelectFamily memilih
+      // IPv4/IPv6 yang bisa terhubung (Happy Eyeballs).
+      autoSelectFamily: true,
+      autoSelectFamilyAttemptTimeout: 1500,
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(body),
+      },
+      timeout: timeoutMs,
+    };
+
+    const req = https.request(
+      options,
+      (res) => {
+        let raw = "";
+        res.setEncoding("utf8");
+        res.on("data", (chunk) => {
+          raw += chunk;
+        });
+        res.on("end", () => {
+          let parsed: {
+            ok?: boolean;
+            result?: T;
+            description?: string;
+          } | null = null;
+
+          try {
+            parsed = JSON.parse(raw);
+          } catch {
+            parsed = null;
+          }
+
+          if (!parsed?.ok) {
+            resolve({
+              ok: false,
+              status: res.statusCode,
+              error:
+                parsed?.description || `HTTP ${res.statusCode ?? "tidak dikenal"}`,
+            });
+            return;
+          }
+
+          resolve({
+            ok: true,
+            status: res.statusCode,
+            result: parsed.result as T,
+          });
+        });
+      }
+    );
+
+    req.on("timeout", () => {
+      timedOut = true;
+      req.destroy();
     });
 
-    const data = await res.json().catch(() => null);
-
-    if (!res.ok || !data?.ok) {
-      return {
+    req.on("error", (error) => {
+      resolve({
         ok: false,
-        status: res.status,
-        error: data?.description || `HTTP ${res.status}`,
-      };
-    }
-
-    return { ok: true, status: res.status, result: data.result as T };
-  } catch (error) {
-    const err = error as Error;
-    return {
-      ok: false,
-      error:
-        err.name === "AbortError"
+        error: timedOut
           ? "Koneksi ke Telegram timeout"
-          : err.message || "Gagal menghubungi Telegram",
-    };
-  } finally {
-    clearTimeout(timeout);
-  }
+          : error.message || "Gagal menghubungi Telegram",
+      });
+    });
+
+    req.write(body);
+    req.end();
+  });
 }
 
 export async function sendTelegramMessage(

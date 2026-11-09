@@ -56,9 +56,29 @@ async function handleStart(
   const tokenRow = await prisma.telegramlinktoken.findUnique({
     where: { token },
     include: {
-      user: { select: { id: true, name: true, email: true } },
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          telegramChatId: true,
+        },
+      },
     },
   });
+
+  const linkedName =
+    tokenRow?.user.name || tokenRow?.user.email || "pengguna";
+
+  // Klik/ kirim /start dua kali: jangan tampilkan error jika sudah tertaut.
+  if (tokenRow?.user.telegramChatId === chatId) {
+    return [
+      "✅ <b>Akun Telegram ini sudah tertaut.</b>",
+      "",
+      `Terhubung dengan ${escapeHtml(linkedName)}.`,
+      "Ketik /bantuan untuk melihat perintah.",
+    ].join("\n");
+  }
 
   if (!tokenRow || tokenRow.usedAt || tokenRow.expiresAt.getTime() < Date.now()) {
     return [
