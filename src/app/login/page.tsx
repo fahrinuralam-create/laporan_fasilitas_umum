@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { signIn } from "next-auth/react";
+import { signIn, getSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -25,12 +25,21 @@ export default function LoginPage() {
       });
 
       if (result?.error) {
-        setError(result.error);
+        setError("Email atau password salah");
         setLoading(false);
         return;
       }
 
-      router.push("/masyarakat/dashboard");
+      const session = await getSession();
+      const role = (session?.user as { role?: string } | undefined)?.role;
+
+      if (role === "ADMIN") {
+        router.push("/admin/dashboard");
+      } else if (role === "PETUGAS") {
+        router.push("/petugas/dashboard");
+      } else {
+        router.push("/masyarakat/dashboard");
+      }
       router.refresh();
     } catch (err) {
       setError("Terjadi kesalahan saat login");
