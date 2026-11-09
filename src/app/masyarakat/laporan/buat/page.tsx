@@ -4,35 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { REPORT_CATEGORIES, REPORT_PRIORITIES } from "@/lib/report-utils";
-
-async function compressImage(file: File): Promise<string> {
-  const dataUrl = await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(new Error("Gagal membaca file"));
-    reader.readAsDataURL(file);
-  });
-
-  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error("Gagal memuat gambar"));
-    img.src = dataUrl;
-  });
-
-  const maxWidth = 1280;
-  const scale = Math.min(1, maxWidth / image.width);
-  const width = Math.round(image.width * scale);
-  const height = Math.round(image.height * scale);
-
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return dataUrl;
-  ctx.drawImage(image, 0, 0, width, height);
-  return canvas.toDataURL("image/jpeg", 0.7);
-}
+import { compressImage } from "@/lib/image";
 
 export default function BuatLaporanPage() {
   const router = useRouter();

@@ -10,10 +10,14 @@ function linksForRole(role?: string): NavLink[] {
   if (role === "ADMIN") {
     return [
       { href: "/admin/dashboard", label: "Dashboard" },
+      { href: "/admin/laporan", label: "Kelola Laporan" },
     ];
   }
   if (role === "PETUGAS") {
-    return [{ href: "/petugas/dashboard", label: "Dashboard" }];
+    return [
+      { href: "/petugas/dashboard", label: "Dashboard" },
+      { href: "/petugas/tugas", label: "Tugas Saya" },
+    ];
   }
   return [
     { href: "/masyarakat/dashboard", label: "Dashboard" },
