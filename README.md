@@ -9,6 +9,7 @@ Aplikasi pelaporan kerusakan fasilitas publik berbasis Next.js 16, Prisma, dan M
 - Alur kerja admin & petugas: verifikasi, penugasan, proses, selesai, tolak
 - Konfigurasi AI (provider, model teks/vision, API key terenkripsi)
 - Analisis AI otomatis + manual (kategori, prioritas, relevansi foto, duplikat)
+- Chatbot in-app **SiLapor** (tanya jawab kontekstual sesuai peran)
 - Notifikasi & chatbot Telegram
 
 ## Menjalankan
@@ -86,6 +87,35 @@ memastikan konfigurasi benar.
 Analisis AI berjalan otomatis di latar belakang saat laporan dibuat, dan dapat
 dijalankan ulang lewat tombol **Analisis AI** di detail laporan admin.
 
+Model teks yang dikonfigurasi juga dipakai oleh chatbot in-app **SiLapor**
+untuk pertanyaan yang bersifat terbuka.
+
+## Chatbot SiLapor
+
+Tombol **Tanya SiLapor** tersedia di semua halaman yang sudah login. Chatbot
+menjawab sesuai peran dan data pengguna:
+
+- **Masyarakat**: jumlah/status laporan sendiri, cara membuat laporan, arti
+  status, prioritas otomatis, notifikasi, dan penautan Telegram.
+- **Petugas**: daftar tugas yang ditugaskan, cara memulai/menyelesaikan tugas,
+  dan status tugas.
+- **Admin**: ringkasan seluruh laporan, alur verifikasi/penugasan, dan
+  konfigurasi AI/Telegram.
+
+Pertanyaan umum dijawab langsung dari database sehingga instan dan akurat.
+Pertanyaan terbuka yang berkaitan dengan aplikasi diteruskan ke model teks AI;
+jika AI belum dikonfigurasi atau gagal, chatbot tetap menjawab dengan fallback
+kontekstual. Chatbot hanya memberi informasi dan tidak dapat mengubah data.
+
+Contoh pertanyaan:
+
+- "Berapa laporan yang sudah saya buat?"
+- "Bagaimana cara membuat laporan?"
+- "Apa arti status Diajukan?"
+- "Status laporan terakhir saya?"
+- "Cek REP-20261109-1234"
+- "Cara tautkan Telegram"
+
 ## Scripts
 
 | Perintah | Fungsi |
@@ -96,3 +126,17 @@ dijalankan ulang lewat tombol **Analisis AI** di detail laporan admin.
 | `npm run telegram:poll` | Mode polling Telegram untuk lokal |
 | `npm run db:check` | Menampilkan jumlah data database |
 | `npm run db:studio` | Prisma Studio |
+
+## Verifikasi E2E
+
+Jalankan saat server pengembangan aktif:
+
+```bash
+node scripts/e2e-test.cjs      # masyarakat
+node scripts/e2e-phase3.cjs    # alur admin & petugas
+node scripts/e2e-phase5.cjs    # AI & Telegram
+node scripts/e2e-phase6.cjs    # chatbot in-app
+```
+
+Script E2E membuat pengguna/laporan sementara dan membersihkannya kembali.
+Konfigurasi AI dan penautan Telegram pengguna asli tidak diubah secara permanen.

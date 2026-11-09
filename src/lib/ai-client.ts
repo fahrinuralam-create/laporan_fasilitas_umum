@@ -1,3 +1,5 @@
+import http from "http";
+import https from "https";
 import { getResolvedAiConfig } from "@/lib/ai-config";
 
 export type ChatContent = string | Array<Record<string, unknown>>;
@@ -19,6 +21,74 @@ type ChatOptions = {
   timeoutMs?: number;
 };
 
+type AiRequestOptions = http.RequestOptions & {
+  autoSelectFamily?: boolean;
+  autoSelectFamilyAttemptTimeout?: number;
+};
+
+type ProviderResponse = {
+  status?: number;
+  body: string;
+};
+
+function requestProvider(
+  url: URL,
+  apiKey: string,
+  body: string,
+  timeoutMs: number
+): Promise<ProviderResponse> {
+  return new Promise((resolve, reject) => {
+    const transport = url.protocol === "http:" ? http : https;
+    let timedOut = false;
+
+    const options: AiRequestOptions = {
+      hostname: url.hostname,
+      port: url.port || undefined,
+      path: `${url.pathname}${url.search}`,
+      method: "POST",
+      // Di sebagian jaringan IPv4 diblokir; autoSelectFamily memilih
+      // IPv4/IPv6 yang bisa terhubung (Happy Eyeballs).
+      autoSelectFamily: true,
+      autoSelectFamilyAttemptTimeout: 1500,
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(body),
+        // Hindari respons terkompresi agar tidak perlu dekompresi manual.
+        "Accept-Encoding": "identity",
+      },
+      timeout: timeoutMs,
+    };
+
+    const req = transport.request(options, (res) => {
+      let raw = "";
+      res.setEncoding("utf8");
+      res.on("data", (chunk) => {
+        raw += chunk;
+      });
+      res.on("end", () => {
+        resolve({ status: res.statusCode, body: raw });
+      });
+    });
+
+    req.on("timeout", () => {
+      timedOut = true;
+      req.destroy();
+    });
+
+    req.on("error", (error) => {
+      reject(
+        new Error(
+          timedOut ? "Waktu tunggu AI habis (timeout)" : error.message
+        )
+      );
+    });
+
+    req.write(body);
+    req.end();
+  });
+}
+
 async function callChat(
   target: "text" | "vision",
   messages: ChatMessage[],
@@ -32,54 +102,56 @@ async function callChat(
     );
   }
 
-  const controller = new AbortController();
-  const timeout = setTimeout(
-    () => controller.abort(),
+  let url: URL;
+  try {
+    url = new URL(`${config.baseUrl}/chat/completions`);
+  } catch {
+    throw new Error("Base URL provider AI tidak valid");
+  }
+
+  const payload = JSON.stringify({
+    model: config.model,
+    messages,
+    temperature: options.temperature ?? 0.2,
+    max_tokens: options.maxTokens ?? 800,
+    stream: false,
+  });
+
+  const response = await requestProvider(
+    url,
+    config.apiKey,
+    payload,
     options.timeoutMs ?? 30000
   );
 
-  try {
-    const res = await fetch(`${config.baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${config.apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: config.model,
-        messages,
-        temperature: options.temperature ?? 0.2,
-        max_tokens: options.maxTokens ?? 800,
-        stream: false,
-      }),
-      signal: controller.signal,
-      cache: "no-store",
-    });
-
-    if (!res.ok) {
-      const detail = await res.text().catch(() => "");
-      throw new Error(
-        `Provider AI menolak permintaan (HTTP ${res.status}): ${detail.slice(
-          0,
-          300
-        )}`
-      );
-    }
-
-    const data = await res.json().catch(() => null);
-    const content = data?.choices?.[0]?.message?.content;
-    if (typeof content !== "string" || !content.trim()) {
-      throw new Error("Respons AI tidak berisi teks yang valid");
-    }
-    return content;
-  } catch (error) {
-    if ((error as Error).name === "AbortError") {
-      throw new Error("Waktu tunggu AI habis (timeout)");
-    }
-    throw error;
-  } finally {
-    clearTimeout(timeout);
+  if (
+    typeof response.status === "number" &&
+    (response.status < 200 || response.status >= 300)
+  ) {
+    throw new Error(
+      `Provider AI menolak permintaan (HTTP ${response.status}): ${response.body.slice(
+        0,
+        300
+      )}`
+    );
   }
+
+  let data: {
+    choices?: Array<{ message?: { content?: unknown } }>;
+  } | null = null;
+
+  try {
+    data = JSON.parse(response.body);
+  } catch {
+    data = null;
+  }
+
+  const content = data?.choices?.[0]?.message?.content;
+  if (typeof content !== "string" || !content.trim()) {
+    throw new Error("Respons AI tidak berisi teks yang valid");
+  }
+
+  return content;
 }
 
 export async function aiChatText(
@@ -95,6 +167,16 @@ export async function aiChatText(
     ],
     options
   );
+}
+
+/**
+ * Percakapan multi-turn (system + riwayat + pesan terbaru) memakai model teks.
+ */
+export async function aiChatMessages(
+  messages: ChatMessage[],
+  options?: ChatOptions
+): Promise<string> {
+  return callChat("text", messages, options);
 }
 
 export async function aiChatWithImage(
