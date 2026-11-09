@@ -1,0 +1,189 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  MASYARAKAT
+  PETUGAS
+  ADMIN
+}
+
+enum LaporanStatus {
+  DRAFT
+  DITERIMA
+  DIPROSES
+  SELESAI
+  DITOLAK
+}
+
+enum KategoriFasilitas {
+  JALAN
+  DRAINASE
+  PENERANGAN_JALAN
+  SARANA_PAMBERSIHAN
+  TPA
+  RUANG_PUBLIK
+  LAINNYA
+}
+
+model User {
+  id            String    @id @default(uuid()) @db.Char(36)
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  role          Role      @default(MASYARAKAT)
+  phone         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts      Account[]
+  sessions      Session[]
+  laporan       Laporan[]
+  laporanSebagaiPetugas Laporan[] @relation("PetugasLaporan")
+  tanggapan     Tanggapan[]
+  notifikasi    Notifikasi[]
+  telegramLink  TelegramLink?
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(uuid()) @db.Char(36)
+  userId            String  @db.Char(36)
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(uuid()) @db.Char(36)
+  sessionToken String   @unique
+  userId       String   @db.Char(36)
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verificationtokens")
+}
+
+model KategoriFasilitasData {
+  id          String   @id @default(uuid()) @db.Char(36)
+  nama        String   @unique
+  deskripsi   String?
+  warna       String?  @default("#6B7280")
+  icon        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  laporan Laporan[]
+
+  @@map("kategori_fasilitas")
+}
+
+model Laporan {
+  id          String            @id @default(uuid()) @db.Char(36)
+  judul       String
+  deskripsi   String?           @db.Text
+  lokasi      String            @db.Text
+  latitude    Float?
+  longitude   Float?
+  fotoUrl     String?
+  status      LaporanStatus     @default(DRAFT)
+  kategoriId  String?           @db.Char(36)
+  userId      String            @db.Char(36)
+  petugasId   String?           @db.Char(36)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  kategori   KategoriFasilitasData? @relation(fields: [kategoriId], references: [id])
+  user       User                @relation(fields: [userId], references: [id])
+  petugas    User?               @relation("PetugasLaporan", fields: [petugasId], references: [id])
+  tanggapan  Tanggapan[]
+  notifikasi Notifikasi[]
+
+  @@map("laporan")
+}
+
+model Tanggapan {
+  id        String   @id @default(uuid()) @db.Char(36)
+  laporanId String   @db.Char(36)
+  petugasId String   @db.Char(36)
+  balasan   String   @db.Text
+  createdAt DateTime @default(now())
+
+  laporan Laporan @relation(fields: [laporanId], references: [id], onDelete: Cascade)
+  petugas User    @relation(fields: [petugasId], references: [id])
+
+  @@map("tanggapan")
+}
+
+model Notifikasi {
+  id        String   @id @default(uuid()) @db.Char(36)
+  userId    String   @db.Char(36)
+  laporanId String?  @db.Char(36)
+  judul     String
+  pesan     String   @db.Text
+  dibaca    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user     User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  laporan  Laporan? @relation(fields: [laporanId], references: [id], onDelete: SetNull)
+
+  @@map("notifikasi")
+}
+
+model AiConfig {
+  id                String   @id @default(uuid()) @db.Char(36)
+  provider          String   @default("openai-compatible")
+  baseUrl           String?  @db.Text
+  apiKey            String?  @db.Text
+  textModel         String?
+  visionModel       String?
+  isEnabled         Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("ai_config")
+}
+
+model TelegramLink {
+  id        String   @id @default(uuid()) @db.Char(36)
+  userId    String   @unique @db.Char(36)
+  chatId    String?  @db.Text
+  token     String   @unique
+  isVerified Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("telegram_link")
+}
