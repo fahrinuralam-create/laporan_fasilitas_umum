@@ -313,7 +313,20 @@ async function main() {
     expectIncludes(r.data.reply, "Admin", "Peran admin");
     r = await ask(adminJar, "berapa petugas terdaftar");
     expectIncludes(r.data.reply, "Petugas:", "Jumlah petugas");
+
+    const aiConfigPage = await fetch(`${BASE}/admin/ai-config`, {
+      headers: { Cookie: adminJar.header() },
+      redirect: "manual",
+    });
+    const aiConfigHtml = await aiConfigPage.text();
+    expectIncludes(aiConfigHtml, "Juan Router", "Preset provider Juan Router");
+    expectIncludes(
+      aiConfigHtml,
+      "https://api.juanrouter.com/v1",
+      "Base URL Juan Router"
+    );
     console.log("15. jawaban admin: ringkasan, verifikasi/penugasan, identitas, jumlah petugas");
+    console.log("15b. halaman Konfigurasi AI menampilkan provider Juan Router");
 
     // 16. Petugas
     const petugasJar = await login(PETUGAS.email);

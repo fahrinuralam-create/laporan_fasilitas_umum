@@ -35,6 +35,21 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     textModels: ["openai/gpt-4o-mini", "anthropic/claude-3.5-sonnet"],
   },
   {
+    id: "juanrouter",
+    label: "Juan Router",
+    baseUrl: "https://api.juanrouter.com/v1",
+    textModels: [
+      "deepseek-v4.1-flash",
+      "deepseek-v4-flash",
+      "deepseek-v4-pro",
+      "gpt-4o",
+      "gemini-3.7-flash-high",
+      "glm-5.2",
+      "kimi-k3",
+      "qwen3.8-max",
+    ],
+  },
+  {
     id: "custom",
     label: "Custom (OpenAI-compatible)",
     baseUrl: "",
