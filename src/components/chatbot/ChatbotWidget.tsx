@@ -35,6 +35,8 @@ function suggestionsFor(role: string): string[] {
       "Cara verifikasi laporan",
       "Cara menugaskan petugas",
       "Konfigurasi AI",
+      "Siapa saya?",
+      "Siapa Anda?",
     ];
   }
   if (role === "PETUGAS") {
@@ -43,14 +45,19 @@ function suggestionsFor(role: string): string[] {
       "Cara menyelesaikan tugas",
       "Arti status",
       "Notifikasi saya",
+      "Siapa saya?",
+      "Siapa Anda?",
     ];
   }
   return [
     "Berapa laporan saya?",
+    "Berapa laporan diajukan?",
     "Cara membuat laporan",
     "Status laporan terakhir",
     "Arti status",
     "Cara tautkan Telegram",
+    "Siapa saya?",
+    "Siapa Anda?",
   ];
 }
 

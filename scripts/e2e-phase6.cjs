@@ -67,10 +67,20 @@ async function api(path, jar, options = {}) {
 }
 
 async function ask(jar, message) {
-  return api("/api/chatbot", jar, {
-    method: "POST",
-    body: JSON.stringify({ message }),
-  });
+  const request = () =>
+    api("/api/chatbot", jar, {
+      method: "POST",
+      body: JSON.stringify({ message }),
+    });
+
+  let r = await request();
+  // Chatbot dibatasi 30 pertanyaan/menit per pengguna. Jika rangkaian uji
+  // melewati batas itu, tunggu jendela rate limit berikutnya.
+  if (r.status === 429) {
+    await new Promise((resolve) => setTimeout(resolve, 61_000));
+    r = await request();
+  }
+  return r;
 }
 
 function expectIncludes(value, needle, label) {
@@ -180,6 +190,34 @@ async function main() {
     expectIncludes(r.data.reply, "belum membuat laporan", "Count awal");
     console.log("2. fallback: pengguna tanpa laporan dijawab kontekstual");
 
+    // 2b. Pertanyaan identitas: asisten dan pengguna dijawab sesuai konteks
+    r = await ask(wargaJar, "siapa anda?");
+    expectIncludes(r.data.reply, "SiLapor", "Identitas asisten");
+    expectIncludes(r.data.reply, "bukan manusia", "Identitas asisten");
+
+    r = await ask(wargaJar, "kamu siapa");
+    expectIncludes(r.data.reply, "SiLapor", "Identitas asisten");
+
+    r = await ask(wargaJar, "siapa saya?");
+    expectIncludes(r.data.reply, "E2E6 Warga", "Identitas pengguna");
+    expectIncludes(r.data.reply, "Masyarakat", "Identitas pengguna");
+
+    r = await ask(wargaJar, "siapa nama saya");
+    expectIncludes(r.data.reply, "E2E6 Warga", "Nama pengguna");
+
+    r = await ask(wargaJar, "anda siapa ya");
+    expectIncludes(r.data.reply, "SiLapor", "Identitas asisten");
+
+    r = await ask(wargaJar, "peran saya apa");
+    expectIncludes(r.data.reply, "Masyarakat", "Peran pengguna");
+
+    r = await ask(wargaJar, "ini aplikasi apa");
+    expectIncludes(r.data.reply, "Pelaporan Fasilitas", "Tentang aplikasi");
+
+    r = await ask(wargaJar, "apa kabar");
+    expectIncludes(r.data.reply, "Kabar saya baik", "Sapaan kecil");
+    console.log("2b. pertanyaan identitas dijawab sesuai konteks");
+
     // 3. Buat laporan
     const report1 = await createReport(wargaJar, "E2E6 Jalan berlubang besar", "JALAN");
     const report2 = await createReport(wargaJar, "E2E6 Lampu jalan mati", "LAMPU_JALAN");
@@ -187,21 +225,28 @@ async function main() {
     createdReportIds.push(report1.id, report2.id, report3.id);
     console.log("3. tiga laporan uji dibuat");
 
-    // 4. Hitung laporan
+    // 4. Hitung laporan: cukup jumlah total laporan milik pengguna
     r = await ask(wargaJar, "berapa laporan yang sudah saya buat");
     if (r.status !== 200 || r.data?.source !== "fallback")
       throw new Error("Fallback count laporan gagal: " + r.raw);
     expectIncludes(r.data.reply, "3 laporan", "Count total");
-    expectIncludes(r.data.reply, "Diajukan 3", "Rincian status");
-    console.log("4. jumlah laporan & rincian status sesuai data pengguna");
+    if (String(r.data.reply).includes("Rincian status"))
+      throw new Error("Count total seharusnya hanya menjawab jumlah laporan: " + r.raw);
+    console.log("4. jumlah laporan total sesuai data pengguna");
 
-    // 5. Hitung status tertentu
+    // 5. Hitung status tertentu (termasuk penulisan terpisah "di ajukan")
+    r = await ask(wargaJar, "berapa laporan yang sudah di ajukan");
+    expectIncludes(r.data.reply, "status Diajukan: 3", "Count status diajukan");
+    r = await ask(wargaJar, "berapa laporan yang sudah di verifikasi");
+    expectIncludes(r.data.reply, "status Diverifikasi: 0", "Count status diverifikasi");
     r = await ask(wargaJar, "berapa laporan yang sudah selesai");
     expectIncludes(r.data.reply, "status Selesai: 0", "Count status");
     r = await ask(wargaJar, "berapa laporan yang belum selesai");
     expectIncludes(r.data.reply, "belum selesai: 3", "Count belum selesai");
     r = await ask(wargaJar, "berapa laporan yang belum ditugaskan");
     expectIncludes(r.data.reply, "belum ditugaskan: 3", "Count belum ditugaskan");
+    r = await ask(wargaJar, "apakah laporan saya sudah selesai?");
+    expectIncludes(r.data.reply, "status Selesai: 0", "Status laporan sendiri");
     console.log("5. pertanyaan jumlah per status & belum selesai dijawab");
 
     // 6. Cara membuat laporan
@@ -263,7 +308,12 @@ async function main() {
     r = await ask(adminJar, "cara verifikasi laporan");
     expectIncludes(r.data.reply, "Kelola Laporan", "Admin verifikasi");
     expectIncludes(r.data.reply, "Tugaskan", "Admin verifikasi");
-    console.log("15. jawaban admin: ringkasan & alur verifikasi/penugasan");
+    r = await ask(adminJar, "siapa saya?");
+    expectIncludes(r.data.reply, "E2E6 Admin", "Identitas admin");
+    expectIncludes(r.data.reply, "Admin", "Peran admin");
+    r = await ask(adminJar, "berapa petugas terdaftar");
+    expectIncludes(r.data.reply, "Petugas:", "Jumlah petugas");
+    console.log("15. jawaban admin: ringkasan, verifikasi/penugasan, identitas, jumlah petugas");
 
     // 16. Petugas
     const petugasJar = await login(PETUGAS.email);
@@ -272,7 +322,10 @@ async function main() {
     r = await ask(petugasJar, "cara menyelesaikan tugas");
     expectIncludes(r.data.reply, "Tugas Saya", "Petugas");
     expectIncludes(r.data.reply, "Selesaikan", "Petugas");
-    console.log("16. jawaban petugas: daftar tugas & cara menyelesaikan");
+    r = await ask(petugasJar, "siapa saya?");
+    expectIncludes(r.data.reply, "E2E6 Petugas", "Identitas petugas");
+    expectIncludes(r.data.reply, "Petugas", "Peran petugas");
+    console.log("16. jawaban petugas: daftar tugas, cara menyelesaikan, identitas");
 
     // 17. Jalur AI dengan mock
     r = await api("/api/admin/ai-config", adminJar, {

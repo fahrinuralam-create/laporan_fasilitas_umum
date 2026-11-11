@@ -16,6 +16,7 @@ function dashboardPath(role: string): string {
 export default async function TelegramSettingsPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  if (user.role !== "MASYARAKAT") redirect(dashboardPath(user.role));
 
   const dbUser = await prisma.user.findUnique({
     where: { id: user.id },

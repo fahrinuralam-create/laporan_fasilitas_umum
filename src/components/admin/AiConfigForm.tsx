@@ -15,7 +15,6 @@ type TargetView = {
 
 type View = {
   text: TargetView;
-  vision: TargetView;
   updatedAt: string | null;
   updatedByEmail: string | null;
   envHasKey: boolean;
@@ -39,18 +38,9 @@ export default function AiConfigForm({
     presets.find((p) => p.id === initial.text.provider)?.textModels ?? []
   );
 
-  const [visionProvider, setVisionProvider] = useState(initial.vision.provider);
-  const [visionBaseUrl, setVisionBaseUrl] = useState(initial.vision.baseUrl);
-  const [visionModel, setVisionModel] = useState(initial.vision.model);
-  const [visionKey, setVisionKey] = useState("");
-  const [clearVisionKey, setClearVisionKey] = useState(false);
-  const [visionModels, setVisionModels] = useState<string[]>(
-    presets.find((p) => p.id === initial.vision.provider)?.visionModels ?? []
-  );
-
   const [saving, setSaving] = useState(false);
-  const [testing, setTesting] = useState<string | null>(null);
-  const [loadingModels, setLoadingModels] = useState<string | null>(null);
+  const [testing, setTesting] = useState<boolean>(false);
+  const [loadingModels, setLoadingModels] = useState<boolean>(false);
   const [message, setMessage] = useState<{
     type: "ok" | "err";
     text: string;
@@ -62,14 +52,6 @@ export default function AiConfigForm({
     if (preset?.baseUrl) setTextBaseUrl(preset.baseUrl);
     if (preset?.textModels[0]) setTextModel(preset.textModels[0]);
     setTextModels(preset?.textModels ?? []);
-  };
-
-  const applyVisionPreset = (id: string) => {
-    setVisionProvider(id);
-    const preset = presets.find((p) => p.id === id);
-    if (preset?.baseUrl) setVisionBaseUrl(preset.baseUrl);
-    if (preset?.visionModels[0]) setVisionModel(preset.visionModels[0]);
-    setVisionModels(preset?.visionModels ?? []);
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -86,11 +68,6 @@ export default function AiConfigForm({
           textModel,
           textApiKey: textKey || undefined,
           clearTextKey,
-          visionProvider,
-          visionBaseUrl,
-          visionModel,
-          visionApiKey: visionKey || undefined,
-          clearVisionKey,
         }),
       });
       const data = await res.json();
@@ -99,9 +76,7 @@ export default function AiConfigForm({
         return;
       }
       setTextKey("");
-      setVisionKey("");
       setClearTextKey(false);
-      setClearVisionKey(false);
       setMessage({ type: "ok", text: "Konfigurasi berhasil disimpan." });
       router.refresh();
     } catch {
@@ -111,62 +86,58 @@ export default function AiConfigForm({
     }
   };
 
-  const handleTest = async (target: "text" | "vision") => {
-    setTesting(target);
+  const handleTest = async () => {
+    setTesting(true);
     setMessage(null);
     try {
       const res = await fetch("/api/admin/ai-config/test", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          target,
-          baseUrl: target === "text" ? textBaseUrl : visionBaseUrl,
-          apiKey: (target === "text" ? textKey : visionKey) || undefined,
+          baseUrl: textBaseUrl,
+          apiKey: textKey || undefined,
         }),
       });
       const data = await res.json();
       if (data.ok) {
         setMessage({
           type: "ok",
-          text: `Koneksi ${target} berhasil (HTTP ${data.status}${
+          text: `Koneksi teks berhasil (HTTP ${data.status}${
             data.count != null ? `, ${data.count} model` : ""
           }).`,
         });
       } else {
         setMessage({
           type: "err",
-          text: `Koneksi ${target} gagal: ${data.error || "tidak diketahui"}`,
+          text: `Koneksi teks gagal: ${data.error || "tidak diketahui"}`,
         });
       }
     } catch {
       setMessage({ type: "err", text: "Gagal menguji koneksi" });
     } finally {
-      setTesting(null);
+      setTesting(false);
     }
   };
 
-  const handleLoadModels = async (target: "text" | "vision") => {
-    setLoadingModels(target);
+  const handleLoadModels = async () => {
+    setLoadingModels(true);
     setMessage(null);
     try {
-      const res = await fetch(
-        `/api/admin/ai-config/models?target=${target}`
-      );
+      const res = await fetch(`/api/admin/ai-config/models?target=text`);
       const data = await res.json();
       if (!res.ok) {
         setMessage({ type: "err", text: data.error || "Gagal memuat model" });
         return;
       }
-      if (target === "text") setTextModels(data.models ?? []);
-      else setVisionModels(data.models ?? []);
+      setTextModels(data.models ?? []);
       setMessage({
         type: "ok",
-        text: `${(data.models ?? []).length} model dimuat untuk ${target}.`,
+        text: `${(data.models ?? []).length} model dimuat.`,
       });
     } catch {
       setMessage({ type: "err", text: "Gagal memuat daftar model" });
     } finally {
-      setLoadingModels(null);
+      setLoadingModels(false);
     }
   };
 
@@ -213,7 +184,7 @@ export default function AiConfigForm({
           <div>
             <h2 className="text-lg font-bold text-zinc-900">Model Teks</h2>
             <p className="text-sm text-zinc-500">
-              Digunakan untuk analisis teks laporan.
+              Digunakan untuk analisis teks laporan dan penilaian foto.
             </p>
           </div>
           {sourceBadge(initial.text.keySource)}
@@ -265,11 +236,11 @@ export default function AiConfigForm({
               />
               <button
                 type="button"
-                onClick={() => handleLoadModels("text")}
-                disabled={loadingModels !== null}
+                onClick={() => handleLoadModels()}
+                disabled={loadingModels}
                 className="px-3 py-2 rounded-lg border border-zinc-300 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
               >
-                {loadingModels === "text" ? "..." : "Muat"}
+                {loadingModels ? "..." : "Muat"}
               </button>
             </div>
             <datalist id="text-models">
@@ -305,120 +276,11 @@ export default function AiConfigForm({
               </label>
               <button
                 type="button"
-                onClick={() => handleTest("text")}
-                disabled={testing !== null}
+                onClick={() => handleTest()}
+                disabled={testing}
                 className="text-sm font-medium text-blue-600 hover:text-blue-500 disabled:opacity-50"
               >
-                {testing === "text" ? "Menguji..." : "Uji Koneksi Teks"}
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Vision model */}
-      <section className="bg-white rounded-xl border border-zinc-200 shadow-sm p-6">
-        <div className="flex items-center justify-between gap-3 mb-4">
-          <div>
-            <h2 className="text-lg font-bold text-zinc-900">Model Vision</h2>
-            <p className="text-sm text-zinc-500">
-              Digunakan untuk analisis foto laporan.
-            </p>
-          </div>
-          {sourceBadge(initial.vision.keySource)}
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-zinc-700 mb-1">
-              Provider
-            </label>
-            <select
-              value={visionProvider}
-              onChange={(e) => applyVisionPreset(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-zinc-300 bg-white text-sm outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {presets.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-zinc-700 mb-1">
-              Base URL
-            </label>
-            <input
-              type="text"
-              value={visionBaseUrl}
-              onChange={(e) => setVisionBaseUrl(e.target.value)}
-              placeholder="https://integrate.api.nvidia.com/v1"
-              className="w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          <div className="sm:col-span-2">
-            <label className="block text-sm font-medium text-zinc-700 mb-1">
-              Model
-            </label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                list="vision-models"
-                value={visionModel}
-                onChange={(e) => setVisionModel(e.target.value)}
-                placeholder="nama-model-vision"
-                className="flex-1 px-3 py-2 rounded-lg border border-zinc-300 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <button
-                type="button"
-                onClick={() => handleLoadModels("vision")}
-                disabled={loadingModels !== null}
-                className="px-3 py-2 rounded-lg border border-zinc-300 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
-              >
-                {loadingModels === "vision" ? "..." : "Muat"}
-              </button>
-            </div>
-            <datalist id="vision-models">
-              {visionModels.map((m) => (
-                <option key={m} value={m} />
-              ))}
-            </datalist>
-          </div>
-
-          <div className="sm:col-span-2">
-            <label className="block text-sm font-medium text-zinc-700 mb-1">
-              API Key
-            </label>
-            <input
-              type="password"
-              value={visionKey}
-              onChange={(e) => setVisionKey(e.target.value)}
-              placeholder={
-                initial.vision.hasKey
-                  ? `Tersimpan: ${initial.vision.maskedKey} (kosongkan bila tidak diubah)`
-                  : "Belum ada API key"
-              }
-              className="w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <div className="flex items-center justify-between mt-2">
-              <label className="flex items-center gap-2 text-sm text-zinc-600">
-                <input
-                  type="checkbox"
-                  checked={clearVisionKey}
-                  onChange={(e) => setClearVisionKey(e.target.checked)}
-                />
-                Hapus API key tersimpan
-              </label>
-              <button
-                type="button"
-                onClick={() => handleTest("vision")}
-                disabled={testing !== null}
-                className="text-sm font-medium text-blue-600 hover:text-blue-500 disabled:opacity-50"
-              >
-                {testing === "vision" ? "Menguji..." : "Uji Koneksi Vision"}
+                {testing ? "Menguji..." : "Uji Koneksi Teks"}
               </button>
             </div>
           </div>

@@ -18,48 +18,54 @@ export function ThemeProvider({
 }: {
   children: React.ReactNode;
 }) {
+  // State tema yang disimpan pengguna ("light" | "dark" | "system")
   const [theme, setThemeState] = useState<Theme>("system");
-  const [mounted, setMounted] = useState(false);
+  // Tema yang sudah di-resolve ke light/dark (dipakai untuk menentukan class "dark")
   const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("light");
 
-  const applyTheme = useCallback(
-    (next: Theme) => {
-      setThemeState(next);
-      localStorage.setItem("pelaporan_theme", next);
+  /**
+   * Menerapkan tema ke DOM (class "dark" pada <html>) dan localStorage.
+   * Tidak memanggil setState untuk menghindari loop.
+   */
+  const applyTheme = useCallback((next: Theme) => {
+    localStorage.setItem("pelaporan_theme", next);
 
-      let resolved: "light" | "dark";
-      if (next === "system") {
-        resolved = window.matchMedia("(prefers-color-scheme: dark)").matches
-          ? "dark"
-          : "light";
-      } else {
-        resolved = next;
-      }
+    let resolved: "light" | "dark";
+    if (next === "system") {
+      resolved = window.matchMedia("(prefers-color-scheme: dark)").matches
+        ? "dark"
+        : "light";
+    } else {
+      resolved = next;
+    }
 
-      setResolvedTheme(resolved);
-      if (resolved === "dark") {
-        document.documentElement.classList.add("dark");
-      } else {
-        document.documentElement.classList.remove("dark");
-      }
-    },
-    []
-  );
+    setResolvedTheme(resolved);
+    if (resolved === "dark") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  }, []);
 
+  // Saat pertama kali dimuat (client), baca preferensi dari localStorage.
   useEffect(() => {
-    setMounted(true);
     const stored = localStorage.getItem("pelaporan_theme") as Theme | null;
-    applyTheme(stored ?? "system");
+    setThemeState(stored ?? "system");
+  }, []);
 
+  // Saat state tema berubah (karena toggleTheme atau setTheme), terapkan ke DOM.
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme, applyTheme]);
+
+  // Ikuti sistem saat tema = "system" dan preferensi sistem berubah.
+  useEffect(() => {
+    if (theme !== "system") return;
     const media = window.matchMedia("(prefers-color-scheme: dark)");
-    const handler = () => {
-      if (theme === "system") {
-        applyTheme("system");
-      }
-    };
+    const handler = () => applyTheme("system");
     media.addEventListener("change", handler);
     return () => media.removeEventListener("change", handler);
-  }, [applyTheme, theme]);
+  }, [theme, applyTheme]);
 
   const toggleTheme = useCallback(() => {
     setThemeState((prev) => {
@@ -69,13 +75,13 @@ export function ThemeProvider({
     });
   }, []);
 
-  const setTheme = useCallback((next: Theme) => {
-    applyTheme(next);
-  }, [applyTheme]);
+  const setThemeExternal = useCallback((next: Theme) => {
+    setThemeState(next);
+  }, []);
 
   return (
     <ThemeContext.Provider
-      value={{ theme, resolvedTheme, toggleTheme, setTheme }}
+      value={{ theme, resolvedTheme, toggleTheme, setTheme: setThemeExternal }}
     >
       {children}
     </ThemeContext.Provider>

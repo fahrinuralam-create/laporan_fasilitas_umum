@@ -50,13 +50,6 @@ export async function PUT(request: NextRequest) {
     textModel: String(body.textModel ?? ""),
     textApiKey: body.textApiKey ? String(body.textApiKey) : undefined,
     clearTextKey: body.clearTextKey === true,
-    visionProvider: String(body.visionProvider ?? ""),
-    visionBaseUrl: String(body.visionBaseUrl ?? ""),
-    visionModel: String(body.visionModel ?? ""),
-    visionApiKey: body.visionApiKey
-      ? String(body.visionApiKey)
-      : undefined,
-    clearVisionKey: body.clearVisionKey === true,
   };
 
   if (input.textBaseUrl && !isValidUrl(input.textBaseUrl)) {
@@ -65,21 +58,9 @@ export async function PUT(request: NextRequest) {
       { status: 400 }
     );
   }
-  if (input.visionBaseUrl && !isValidUrl(input.visionBaseUrl)) {
-    return NextResponse.json(
-      { error: "Base URL vision tidak valid (harus http/https)" },
-      { status: 400 }
-    );
-  }
   if (!input.textModel.trim()) {
     return NextResponse.json(
       { error: "Model teks wajib diisi" },
-      { status: 400 }
-    );
-  }
-  if (!input.visionModel.trim()) {
-    return NextResponse.json(
-      { error: "Model vision wajib diisi" },
       { status: 400 }
     );
   }

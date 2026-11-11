@@ -25,6 +25,12 @@ export async function GET() {
   if (!sessionUser) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  if (sessionUser.role !== "MASYARAKAT") {
+    return NextResponse.json(
+      { error: "Fitur tautan Telegram hanya tersedia untuk masyarakat." },
+      { status: 403 }
+    );
+  }
 
   const user = await prisma.user.findUnique({
     where: { id: sessionUser.id },
@@ -47,6 +53,12 @@ export async function POST() {
   const sessionUser = await getCurrentUser();
   if (!sessionUser) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (sessionUser.role !== "MASYARAKAT") {
+    return NextResponse.json(
+      { error: "Fitur tautan Telegram hanya tersedia untuk masyarakat." },
+      { status: 403 }
+    );
   }
 
   const now = new Date();
@@ -85,6 +97,12 @@ export async function PATCH(request: NextRequest) {
   if (!sessionUser) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  if (sessionUser.role !== "MASYARAKAT") {
+    return NextResponse.json(
+      { error: "Fitur tautan Telegram hanya tersedia untuk masyarakat." },
+      { status: 403 }
+    );
+  }
 
   let body: Record<string, unknown>;
   try {
@@ -112,6 +130,12 @@ export async function DELETE() {
   const sessionUser = await getCurrentUser();
   if (!sessionUser) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (sessionUser.role !== "MASYARAKAT") {
+    return NextResponse.json(
+      { error: "Fitur tautan Telegram hanya tersedia untuk masyarakat." },
+      { status: 403 }
+    );
   }
 
   await prisma.user.update({

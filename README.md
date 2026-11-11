@@ -124,11 +124,17 @@ kontekstual. Chatbot hanya memberi informasi dan tidak dapat mengubah data.
 Contoh pertanyaan:
 
 - "Berapa laporan yang sudah saya buat?"
+- "Berapa laporan yang sudah diajukan?"
+- "Berapa laporan yang sudah diverifikasi?"
 - "Bagaimana cara membuat laporan?"
 - "Apa arti status Diajukan?"
 - "Status laporan terakhir saya?"
 - "Cek REP-20261109-1234"
 - "Cara tautkan Telegram"
+
+Pertanyaan jumlah dijawab spesifik sesuai yang ditanyakan: total laporan yang
+dibuat, atau jumlah pada status tertentu (diajukan, diverifikasi, ditugaskan,
+diproses, selesai, ditolak), tanpa menambahkan rincian yang tidak diminta.
 
 ## Scripts
 

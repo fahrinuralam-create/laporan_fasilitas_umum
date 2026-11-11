@@ -46,8 +46,9 @@ export default async function AiConfigPage() {
               <thead className="bg-zinc-50 text-zinc-500">
                 <tr>
                   <th className="text-left font-medium px-4 py-3">Waktu</th>
-                  <th className="text-left font-medium px-4 py-3">Teks</th>
-                  <th className="text-left font-medium px-4 py-3">Vision</th>
+                  <th className="text-left font-medium px-4 py-3">
+                    Model Teks
+                  </th>
                   <th className="text-left font-medium px-4 py-3">
                     Sumber Key
                   </th>
@@ -69,22 +70,10 @@ export default async function AiConfigPage() {
                       <p className="text-xs text-zinc-500">{h.textModel}</p>
                     </td>
                     <td className="px-4 py-3">
-                      <p className="font-medium text-zinc-900">
-                        {h.visionProvider}
-                      </p>
-                      <p className="text-xs text-zinc-500">{h.visionModel}</p>
-                    </td>
-                    <td className="px-4 py-3">
                       <p className="text-zinc-600">
                         Teks: {h.textKeySource}
                         {h.textKeyFingerprint
                           ? ` (${h.textKeyFingerprint})`
-                          : ""}
-                      </p>
-                      <p className="text-xs text-zinc-500">
-                        Vision: {h.visionKeySource}
-                        {h.visionKeyFingerprint
-                          ? ` (${h.visionKeyFingerprint})`
                           : ""}
                       </p>
                     </td>

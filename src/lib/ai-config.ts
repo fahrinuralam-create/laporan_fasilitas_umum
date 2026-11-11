@@ -27,11 +27,6 @@ export type AiConfigUpdateInput = {
   textModel: string;
   textApiKey?: string;
   clearTextKey?: boolean;
-  visionProvider: string;
-  visionBaseUrl: string;
-  visionModel: string;
-  visionApiKey?: string;
-  clearVisionKey?: boolean;
 };
 
 function envFallback() {
@@ -177,10 +172,8 @@ export async function updateAiConfig(
   const env = envFallback();
 
   const textKeyInput = input.textApiKey?.trim() || "";
-  const visionKeyInput = input.visionApiKey?.trim() || "";
 
   const existingTextEnc = existing?.textApiKey ?? existing?.apiKey ?? null;
-  const existingVisionEnc = existing?.visionApiKey ?? null;
 
   const textEncrypted =
     input.clearTextKey === true
@@ -189,13 +182,6 @@ export async function updateAiConfig(
         ? encryptSecret(textKeyInput)
         : existingTextEnc;
 
-  const visionEncrypted =
-    input.clearVisionKey === true
-      ? null
-      : visionKeyInput
-        ? encryptSecret(visionKeyInput)
-        : existingVisionEnc;
-
   const textEffective = resolveEffectiveKey(
     decryptSecret(existingTextEnc),
     env.apiKey,
@@ -203,19 +189,18 @@ export async function updateAiConfig(
     input.clearTextKey === true
   );
 
-  const visionEffective = resolveEffectiveKey(
-    decryptSecret(existingVisionEnc) || decryptSecret(existingTextEnc),
-    env.apiKey,
-    visionKeyInput || undefined,
-    input.clearVisionKey === true
-  );
-
   const textProvider = input.textProvider.trim() || env.provider;
   const textBaseUrl = cleanBaseUrl(input.textBaseUrl) || env.baseUrl;
   const textModel = input.textModel.trim() || env.textModel;
-  const visionProvider = input.visionProvider.trim() || env.provider;
-  const visionBaseUrl = cleanBaseUrl(input.visionBaseUrl) || env.baseUrl;
-  const visionModel = input.visionModel.trim() || env.visionModel;
+
+  // Konfigurasi AI hanya tersedia untuk model teks. Nilai konfigurasi vision
+  // diturunkan dari model teks agar fitur analisis foto (report-ai) tetap
+  // berfungsi normal tanpa perlu konfigurasi vision terpisah.
+  const visionProvider = textProvider;
+  const visionBaseUrl = textBaseUrl;
+  const visionModel = textModel;
+  const visionEncrypted = textEncrypted;
+  const visionEffective = textEffective;
 
   await prisma.$transaction(async (tx) => {
     await tx.aiconfigurationhistory.updateMany({
