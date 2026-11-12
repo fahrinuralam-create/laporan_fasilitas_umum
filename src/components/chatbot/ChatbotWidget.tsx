@@ -34,7 +34,9 @@ function suggestionsFor(role: string): string[] {
       "Ringkasan laporan",
       "Cara verifikasi laporan",
       "Cara menugaskan petugas",
+      "Beban tugas petugas",
       "Konfigurasi AI",
+      "Kategori apa saja?",
       "Siapa saya?",
       "Siapa Anda?",
     ];
@@ -45,6 +47,7 @@ function suggestionsFor(role: string): string[] {
       "Cara menyelesaikan tugas",
       "Arti status",
       "Notifikasi saya",
+      "Kategori apa saja?",
       "Siapa saya?",
       "Siapa Anda?",
     ];
@@ -54,7 +57,10 @@ function suggestionsFor(role: string): string[] {
     "Berapa laporan diajukan?",
     "Cara membuat laporan",
     "Status laporan terakhir",
+    "Lokasi laporan terakhir",
+    "Kenapa laporan saya ditolak?",
     "Arti status",
+    "Kategori apa saja?",
     "Cara tautkan Telegram",
     "Siapa saya?",
     "Siapa Anda?",

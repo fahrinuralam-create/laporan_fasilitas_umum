@@ -211,12 +211,21 @@ async function main() {
     r = await ask(wargaJar, "peran saya apa");
     expectIncludes(r.data.reply, "Masyarakat", "Peran pengguna");
 
-    r = await ask(wargaJar, "ini aplikasi apa");
-    expectIncludes(r.data.reply, "Pelaporan Fasilitas", "Tentang aplikasi");
+    r = await ask(wargaJar, "kategori apa saja yang bisa di laporkan");
+    expectIncludes(r.data.reply, "Jalan", "Kategori laporan");
+    expectIncludes(r.data.reply, "Lampu Jalan", "Kategori laporan");
+    expectIncludes(r.data.reply, "Saluran Air", "Kategori laporan");
+    expectIncludes(r.data.reply, "Jembatan", "Kategori laporan");
+    expectIncludes(r.data.reply, "Fasilitas Kesehatan", "Kategori laporan");
+    expectIncludes(r.data.reply, "Lainnya", "Kategori laporan");
 
-    r = await ask(wargaJar, "apa kabar");
-    expectIncludes(r.data.reply, "Kabar saya baik", "Sapaan kecil");
-    console.log("2b. pertanyaan identitas dijawab sesuai konteks");
+    r = await ask(wargaJar, "apa itu kategori lampu jalan");
+    expectIncludes(
+      r.data.reply,
+      "lampu penerangan jalan",
+      "Penjelasan kategori"
+    );
+    console.log("2b. pertanyaan identitas & kategori dijawab sesuai konteks");
 
     // 3. Buat laporan
     const report1 = await createReport(wargaJar, "E2E6 Jalan berlubang besar", "JALAN");
@@ -264,6 +273,8 @@ async function main() {
     r = await ask(wargaJar, `cek ${report3.reportNumber}`);
     expectIncludes(r.data.reply, `Laporan ${report3.reportNumber}`, "Cek laporan");
     expectIncludes(r.data.reply, "Status: Diajukan", "Cek laporan");
+    expectIncludes(r.data.reply, "Lokasi: Jl. Uji Chatbot", "Lokasi laporan");
+    expectIncludes(r.data.reply, "Foto:", "Info foto");
     console.log("8. pengecekan nomor laporan REP-... berhasil");
 
     // 9. Arti status
@@ -283,9 +294,10 @@ async function main() {
     console.log("11. panduan tautan Telegram tersedia");
 
     // 12. Notifikasi
-    r = await ask(wargaJar, "berapa notifikasi saya");
+    r = await ask(wargaJar, "notifikasi terbaru");
     expectIncludes(r.data.reply, "3 notifikasi", "Notifikasi");
-    console.log("12. jumlah notifikasi belum dibaca sesuai");
+    expectIncludes(r.data.reply, "Notifikasi terbaru:", "Detail notifikasi");
+    console.log("12. jumlah dan detail notifikasi terbaru sesuai");
 
     // 13. Pertanyaan di luar topik
     r = await ask(wargaJar, "resep nasi goreng");
@@ -308,11 +320,103 @@ async function main() {
     r = await ask(adminJar, "cara verifikasi laporan");
     expectIncludes(r.data.reply, "Kelola Laporan", "Admin verifikasi");
     expectIncludes(r.data.reply, "Tugaskan", "Admin verifikasi");
+    r = await ask(adminJar, "cara menugaskan petugas");
+    expectIncludes(r.data.reply, "Kelola Laporan", "Admin penugasan");
+    expectIncludes(r.data.reply, "Tugaskan", "Admin penugasan");
     r = await ask(adminJar, "siapa saya?");
     expectIncludes(r.data.reply, "E2E6 Admin", "Identitas admin");
     expectIncludes(r.data.reply, "Admin", "Peran admin");
     r = await ask(adminJar, "berapa petugas terdaftar");
     expectIncludes(r.data.reply, "Petugas:", "Jumlah petugas");
+    r = await ask(adminJar, "berapa laporan kategori jalan");
+    expectIncludes(r.data.reply, "kategori Jalan:", "Jumlah per kategori");
+    r = await ask(adminJar, "berapa laporan per kategori");
+    expectIncludes(r.data.reply, "Rincian kategori", "Rincian kategori");
+    r = await ask(adminJar, "berapa laporan hari ini");
+    expectIncludes(r.data.reply, "hari ini:", "Jumlah laporan hari ini");
+    r = await ask(adminJar, "berapa laporan duplikat");
+    expectIncludes(r.data.reply, "duplikat:", "Jumlah laporan duplikat");
+    r = await ask(adminJar, "kenapa laporan ditolak");
+    if (
+      !/Alasan:|Tidak ada laporan berstatus Ditolak/.test(String(r.data.reply))
+    ) {
+      throw new Error("Alasan penolakan tidak dijawab: " + r.raw);
+    }
+    r = await ask(adminJar, "beban tugas petugas");
+    expectIncludes(r.data.reply, "Beban tugas petugas:", "Beban petugas");
+    r = await ask(adminJar, "lokasi laporan terakhir");
+    expectIncludes(
+      r.data.reply,
+      "Lokasi laporan terbaru di sistem",
+      "Lokasi laporan"
+    );
+    expectIncludes(r.data.reply, "Jl. Uji Chatbot", "Alamat laporan");
+
+    // 15b. Variasi pertanyaan status harus konsisten dengan angka dashboard.
+    const statusGroups = await prisma.report.groupBy({
+      by: ["status"],
+      _count: { _all: true },
+    });
+    const statusCounts = Object.fromEntries(
+      statusGroups.map((group) => [group.status, group._count._all])
+    );
+    const processedStage =
+      (statusCounts.DIVERIFIKASI ?? 0) +
+      (statusCounts.DITUGASKAN ?? 0) +
+      (statusCounts.DIPROSES ?? 0);
+    const notProcessed =
+      (statusCounts.DIAJUKAN ?? 0) +
+      (statusCounts.DIVERIFIKASI ?? 0) +
+      (statusCounts.DITUGASKAN ?? 0);
+
+    r = await ask(adminJar, "berapa laporan yang sudah di proses");
+    if (processedStage > 0) {
+      expectIncludes(
+        r.data.reply,
+        `yang sudah diproses: ${processedStage}`,
+        "Tahap diproses"
+      );
+    } else {
+      expectIncludes(
+        r.data.reply,
+        "Tidak ada laporan di sistem yang sudah diproses",
+        "Tahap diproses kosong"
+      );
+    }
+
+    r = await ask(adminJar, "berapa laporan yang dalam proses");
+    expectIncludes(
+      r.data.reply,
+      `status Diproses: ${statusCounts.DIPROSES ?? 0}`,
+      "Status diproses spesifik"
+    );
+    r = await ask(adminJar, "berapa laporan verifikasi");
+    expectIncludes(
+      r.data.reply,
+      `status Diverifikasi: ${statusCounts.DIVERIFIKASI ?? 0}`,
+      "Status verifikasi"
+    );
+    r = await ask(adminJar, "berapa laporan tolak");
+    expectIncludes(
+      r.data.reply,
+      `status Ditolak: ${statusCounts.DITOLAK ?? 0}`,
+      "Status tolak"
+    );
+    r = await ask(adminJar, "berapa laporan yang belum diproses");
+    if (notProcessed > 0) {
+      expectIncludes(
+        r.data.reply,
+        `yang belum diproses: ${notProcessed}`,
+        "Belum diproses"
+      );
+    } else {
+      expectIncludes(
+        r.data.reply,
+        "Tidak ada laporan di sistem yang belum diproses",
+        "Belum diproses kosong"
+      );
+    }
+    console.log("15b. variasi pertanyaan status sesuai angka dashboard & database");
 
     const aiConfigPage = await fetch(`${BASE}/admin/ai-config`, {
       headers: { Cookie: adminJar.header() },
@@ -326,7 +430,7 @@ async function main() {
       "Base URL Juan Router"
     );
     console.log("15. jawaban admin: ringkasan, verifikasi/penugasan, identitas, jumlah petugas");
-    console.log("15b. halaman Konfigurasi AI menampilkan provider Juan Router");
+    console.log("15c. halaman Konfigurasi AI menampilkan provider Juan Router");
 
     // 16. Petugas
     const petugasJar = await login(PETUGAS.email);
