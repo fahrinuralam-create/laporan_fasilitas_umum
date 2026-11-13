@@ -32,38 +32,39 @@ function suggestionsFor(role: string): string[] {
   if (role === "ADMIN") {
     return [
       "Ringkasan laporan",
+      "Tampilkan semua laporan",
+      "Siapa saja pengguna terdaftar?",
+      "Cari laporan lampu jalan",
       "Cara verifikasi laporan",
-      "Cara menugaskan petugas",
       "Beban tugas petugas",
-      "Konfigurasi AI",
+      "Model AI apa yang dipakai?",
       "Kategori apa saja?",
       "Siapa saya?",
-      "Siapa Anda?",
     ];
   }
   if (role === "PETUGAS") {
     return [
       "Tugas saya",
+      "Detail tugas terakhir",
+      "Cari tugas saya",
       "Cara menyelesaikan tugas",
       "Arti status",
       "Notifikasi saya",
       "Kategori apa saja?",
       "Siapa saya?",
-      "Siapa Anda?",
     ];
   }
   return [
     "Berapa laporan saya?",
-    "Berapa laporan diajukan?",
-    "Cara membuat laporan",
     "Status laporan terakhir",
-    "Lokasi laporan terakhir",
+    "Tampilkan semua laporan saya",
+    "Cari laporan tentang jalan",
+    "Cara membuat laporan",
     "Kenapa laporan saya ditolak?",
     "Arti status",
     "Kategori apa saja?",
     "Cara tautkan Telegram",
     "Siapa saya?",
-    "Siapa Anda?",
   ];
 }
 

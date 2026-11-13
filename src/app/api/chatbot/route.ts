@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateChatbotReply, type ChatbotHistoryItem } from "@/lib/chatbot";
 import { getCurrentUser } from "@/lib/session";
 
+// AI dengan tool database dapat membutuhkan beberapa panggilan provider.
+export const maxDuration = 60;
+
 const RATE_LIMIT = 30;
 const RATE_WINDOW_MS = 60_000;
 const buckets = new Map<string, { count: number; resetAt: number }>();

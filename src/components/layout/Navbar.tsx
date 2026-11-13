@@ -14,12 +14,14 @@ function linksForRole(role?: string): NavLink[] {
       { href: "/admin/laporan", label: "Kelola Laporan" },
       { href: "/admin/ai-config", label: "Konfigurasi AI" },
       { href: "/admin/telegram", label: "Bot Telegram" },
+      { href: "/admin/telegram/verifikasi", label: "Verifikasi Telegram" },
     ];
   }
   if (role === "PETUGAS") {
     return [
       { href: "/petugas/dashboard", label: "Dashboard" },
       { href: "/petugas/tugas", label: "Tugas Saya" },
+      { href: "/petugas/telegram", label: "Verifikasi Telegram" },
     ];
   }
   return [

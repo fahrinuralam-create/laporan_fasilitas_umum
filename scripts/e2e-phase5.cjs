@@ -210,6 +210,30 @@ async function webhookUpdate(chatId, text, username = "e2e5bot") {
   });
 }
 
+async function webhookContact(
+  chatId,
+  phone,
+  contactUserId = chatId,
+  username = "e2e5bot"
+) {
+  return api("/api/telegram/webhook", null, {
+    method: "POST",
+    body: JSON.stringify({
+      update_id: Math.floor(Math.random() * 1e9),
+      message: {
+        message_id: Math.floor(Math.random() * 1e9),
+        chat: { id: chatId, type: "private" },
+        from: { id: chatId, is_bot: false, first_name: "E2E5", username },
+        contact: {
+          phone_number: phone,
+          first_name: "E2E5",
+          user_id: contactUserId,
+        },
+      },
+    }),
+  });
+}
+
 async function main() {
   const startMs = Date.now();
   const suffix = Math.random().toString(36).slice(2, 10).toUpperCase();
@@ -229,7 +253,20 @@ async function main() {
   for (const u of [ADMIN, PETUGAS, WARGA]) {
     await prisma.user.upsert({
       where: { email: u.email },
-      update: { password: hash, role: u.role },
+      update: {
+        password: hash,
+        role: u.role,
+        ...(u.email === WARGA.email
+          ? {
+              phone: null,
+              phoneNormalized: null,
+              telegramChatId: null,
+              telegramLinkedAt: null,
+              telegramUsername: null,
+              telegramEnabled: true,
+            }
+          : {}),
+      },
       create: { name: u.name, email: u.email, password: hash, role: u.role },
     });
   }
@@ -406,25 +443,74 @@ async function main() {
       throw new Error("Status Telegram awal salah: " + r.raw);
     console.log("8. status Telegram awal: belum tertaut");
 
-    // Buat token & tautkan via webhook
-    r = await api("/api/telegram/link", wargaJar, { method: "POST" });
+    // Simpan nomor HP -> pengajuan otomatis PENDING_ADMIN
+    r = await api("/api/telegram/phone", wargaJar, {
+      method: "PATCH",
+      body: JSON.stringify({ phone: "081234567890" }),
+    });
+    if (
+      r.status !== 200 ||
+      !r.data.request ||
+      r.data.request.status !== "PENDING_ADMIN"
+    )
+      throw new Error("Pengajuan otomatis gagal dibuat: " + r.raw);
+    const telegramRequestId = r.data.request.id;
+
+    // Pengajuan terlihat di halaman verifikasi admin
+    r = await api("/api/telegram/verification", adminJar);
+    if (
+      r.status !== 200 ||
+      !r.data.requests.some((item) => item.id === telegramRequestId)
+    )
+      throw new Error("Pengajuan tidak muncul di verifikasi admin: " + r.raw);
+
+    // Admin menyetujui
+    r = await api(`/api/telegram/verification/${telegramRequestId}`, adminJar, {
+      method: "POST",
+      body: JSON.stringify({ action: "approve" }),
+    });
+    if (r.status !== 200 || r.data.request.status !== "PENDING_TELEGRAM")
+      throw new Error("Persetujuan admin gagal: " + r.raw);
+
+    // Pengguna membuat token konfirmasi
+    r = await api("/api/telegram/link", wargaJar, {
+      method: "POST",
+      body: JSON.stringify({ action: "confirmation" }),
+    });
     if (r.status !== 200 || !r.data.token || !r.data.command)
-      throw new Error("Gagal membuat token Telegram: " + r.raw);
+      throw new Error("Gagal membuat token konfirmasi: " + r.raw);
     const token = r.data.token;
     const chatId = 900000000 + Math.floor(Math.random() * 99999999);
 
+    // /start belum mengaktifkan; harus konfirmasi kontak sendiri
     r = await webhookUpdate(chatId, `/start ${token}`);
     if (r.status !== 200) throw new Error("Webhook /start gagal: " + r.raw);
+
+    r = await api("/api/telegram/link", wargaJar);
+    if (r.data.linked !== false)
+      throw new Error("/start tidak boleh langsung mengaktifkan Telegram");
+
+    // Kontak milik orang lain ditolak
+    r = await webhookContact(chatId, "6281234567890", chatId + 1);
+    if (r.status !== 200) throw new Error("Webhook kontak gagal: " + r.raw);
+    r = await api("/api/telegram/link", wargaJar);
+    if (r.data.linked !== false)
+      throw new Error("Kontak milik orang lain tidak boleh diterima");
+
+    // Kontak sendiri dengan nomor cocok -> aktif
+    r = await webhookContact(chatId, "6281234567890");
+    if (r.status !== 200) throw new Error("Webhook kontak gagal: " + r.raw);
 
     r = await api("/api/telegram/link", wargaJar);
     if (r.data.linked !== true || r.data.username !== "e2e5bot")
       throw new Error("Tautan Telegram tidak tersimpan: " + r.raw);
 
-    const tokenRow = await prisma.telegramlinktoken.findUnique({
-      where: { token },
+    const linkedRequest = await prisma.telegramlinkrequest.findUnique({
+      where: { id: telegramRequestId },
     });
-    if (!tokenRow?.usedAt) throw new Error("Token tidak ditandai terpakai");
-    console.log("9. penautan via webhook /start ok (token sekali pakai)");
+    if (linkedRequest?.status !== "ACTIVE" || !linkedRequest?.confirmedAt)
+      throw new Error("Status pengajuan tidak ACTIVE setelah konfirmasi");
+    console.log("9. verifikasi admin + konfirmasi kontak Telegram ok");
 
     // Perintah bot
     for (const command of [

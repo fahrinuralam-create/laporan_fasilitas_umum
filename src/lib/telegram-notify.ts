@@ -30,6 +30,24 @@ export async function deliverTelegramNotification(
     if (!notification.user.telegramChatId) return;
     if (!notification.user.telegramEnabled) return;
 
+    // Jika pengguna memiliki riwayat pengajuan penautan, notifikasi hanya
+    // boleh dikirim ketika ada koneksi ACTIVE yang cocok dengan chat aktif.
+    // Akun lama tanpa riwayat pengajuan tetap kompatibel.
+    const requestCount = await prisma.telegramlinkrequest.count({
+      where: { userId: notification.userId },
+    });
+    if (requestCount > 0) {
+      const activeRequest = await prisma.telegramlinkrequest.findFirst({
+        where: {
+          userId: notification.userId,
+          status: "ACTIVE",
+          telegramChatId: notification.user.telegramChatId,
+        },
+        select: { id: true },
+      });
+      if (!activeRequest) return;
+    }
+
     if (!isTelegramConfigured()) {
       await prisma.notification.update({
         where: { id: notificationId },

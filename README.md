@@ -47,6 +47,30 @@ TELEGRAM_WEBHOOK_SECRET=""
 
 ## Telegram
 
+### Alur penautan dengan verifikasi admin
+
+1. Pengguna mendaftar dengan nomor HP, atau menyimpan/mengubah nomor HP di
+   **Pengaturan Telegram**. Sistem otomatis membuat pengajuan penautan.
+2. Admin membuka **Admin > Verifikasi Telegram**, petugas membuka
+   **Petugas > Verifikasi Telegram**. Pengajuan dapat disetujui atau ditolak
+   (alasan penolakan wajib diisi).
+3. Setelah disetujui, pengguna membuka **Pengaturan Telegram**, klik
+   **Buat Tautan Konfirmasi**, lalu membuka bot Telegram.
+4. Di bot, pengguna mengirim `/start <kode>` dan menekan tombol
+   **Bagikan Nomor HP**. Kontak harus berasal dari akun Telegram pengguna
+   sendiri dan nomornya harus sama dengan nomor HP terdaftar.
+5. Koneksi Telegram baru aktif setelah persetujuan admin/petugas dan
+   konfirmasi identitas berhasil. Hanya koneksi aktif yang menerima
+   notifikasi.
+
+Persetujuan admin tidak otomatis membuktikan kepemilikan akun Telegram.
+Mengubah nomor HP akan mencabut koneksi lama dan membuat pengajuan baru.
+Riwayat pengajuan tetap disimpan.
+
+> Kode tautan lama dari alur manual sebelumnya tidak lagi dapat mengaktifkan
+> koneksi tanpa persetujuan admin. Akun yang sudah aktif sebelum pembaruan ini
+> tetap berfungsi dan dapat diakses dari Pengaturan Telegram.
+
 ### Pengembangan lokal (tanpa domain publik)
 
 Telegram tidak dapat memanggil `http://localhost`, sehingga webhook tidak bisa
@@ -61,12 +85,8 @@ npm run telegram:poll
 ```
 
 Poller mengambil pesan dari Telegram (`getUpdates`) dan meneruskannya ke route
-webhook lokal. Setelah itu:
-
-1. Buka `/pengaturan/telegram` dan klik **Buat Kode Tautan**.
-2. Kirim perintah `/start <kode>` ke bot Telegram.
-3. Klik **Cek Status** — akun akan tertaut.
-4. Coba perintah `/status`, `/laporan`, `/cek REP-...`, `/lapor`, `/bantuan`.
+webhook lokal. Setelah itu lakukan alur penautan di atas. Perintah bot yang
+tersedia: `/status`, `/laporan`, `/cek REP-...`, `/lapor`, `/bantuan`.
 
 ### Produksi (domain HTTPS publik)
 
@@ -76,6 +96,19 @@ webhook lokal. Setelah itu:
 3. Restart server, lalu buka **Admin > Bot Telegram** dan klik **Atur Webhook**.
 4. Hentikan `npm run telegram:poll` jika sebelumnya digunakan (webhook dan
    polling tidak boleh aktif bersamaan).
+
+### Migrasi database
+
+Perubahan skema Telegram ditambahkan lewat migration additive
+`prisma/migrations/20261112000000_telegram_link_request`. Terapkan dengan:
+
+```bash
+npx prisma migrate deploy
+npx prisma generate
+```
+
+Jangan menjalankan `prisma migrate reset` atau `prisma db push` pada database
+yang sudah berisi data.
 
 ## AI
 
@@ -116,25 +149,56 @@ menjawab sesuai peran dan data pengguna:
 - **Admin**: ringkasan seluruh laporan, alur verifikasi/penugasan, dan
   konfigurasi AI/Telegram.
 
+### Akses database penuh (role-aware)
+
+Saat AI dipakai, SiLapor menerima **snapshot database** dan dapat memanggil tool
+`query_database` untuk membaca data yang tidak tercakup di snapshot. Cakupan
+akses mengikuti peran:
+
+- **Admin**: seluruh laporan, pengguna, riwayat status, metadata foto, notifikasi,
+  konfigurasi AI (API key hanya masking), dan status tautan Telegram.
+- **Petugas**: laporan yang ditugaskan kepadanya, riwayat/foto laporan tersebut,
+  notifikasi miliknya, dan statistik agregat tanpa data pribadi pengguna lain.
+- **Masyarakat**: laporan miliknya, riwayat/foto laporan tersebut, notifikasi
+  miliknya, dan statistik agregat tanpa data pribadi pengguna lain.
+
+Data sensitif tidak pernah dibaca atau dikirim ke model: password, API key
+mentah, token Telegram mentah, dan isi gambar mentah (hanya metadata/analisis
+AI-nya). Tool database selalu menerapkan pembatasan peran di server, sehingga
+pengguna tidak dapat mengakses data di luar haknya meskipun memintanya lewat
+prompt.
+
 Pertanyaan umum dijawab langsung dari database sehingga instan dan akurat.
-Pertanyaan terbuka yang berkaitan dengan aplikasi diteruskan ke model teks AI;
-jika AI belum dikonfigurasi atau gagal, chatbot tetap menjawab dengan fallback
-kontekstual. Chatbot hanya memberi informasi dan tidak dapat mengubah data.
+Pertanyaan terbuka, pencarian, atau permintaan detail diteruskan ke model teks
+AI dengan snapshot + tool database. Jika AI belum dikonfigurasi atau gagal,
+chatbot tetap menjawab dengan fallback kontekstual. Chatbot hanya memberi
+informasi dan tidak dapat mengubah data.
 
 Contoh pertanyaan:
 
 - "Berapa laporan yang sudah saya buat?"
 - "Berapa laporan yang sudah diajukan?"
-- "Berapa laporan yang sudah diverifikasi?"
 - "Bagaimana cara membuat laporan?"
 - "Apa arti status Diajukan?"
-- "Status laporan terakhir saya?"
 - "Cek REP-20261109-1234"
+- "Tampilkan semua laporan kategori jalan"
+- "Cari laporan dengan kata lampu di alamat Merdeka"
+- "Siapa pelapor laporan REP-20261109-1234?"
+- "Tampilkan riwayat lengkap REP-20261109-1234"
+- "Berapa laporan yang ditangani petugas Ahmad bulan ini?"
+- "Siapa saja pengguna terdaftar?"
+- "Berapa admin, petugas, dan masyarakat di sistem?"
+- "Model AI apa yang sedang dipakai?"
+- "Tampilkan skema/tabel database"
 - "Cara tautkan Telegram"
 
 Pertanyaan jumlah dijawab spesifik sesuai yang ditanyakan: total laporan yang
 dibuat, atau jumlah pada status tertentu (diajukan, diverifikasi, ditugaskan,
 diproses, selesai, ditolak), tanpa menambahkan rincian yang tidak diminta.
+
+Bot Telegram juga menerima pertanyaan bebas (bukan hanya perintah `/...`) dari
+akun yang sudah tertaut. Pertanyaan tersebut diproses oleh mesin SiLapor yang
+sama, termasuk akses database sesuai peran.
 
 ## Scripts
 
@@ -146,6 +210,7 @@ diproses, selesai, ditolak), tanpa menambahkan rincian yang tidak diminta.
 | `npm run telegram:poll` | Mode polling Telegram untuk lokal |
 | `npm run db:check` | Menampilkan jumlah data database |
 | `npm run db:studio` | Prisma Studio |
+| `node scripts/e2e-telegram-verification.cjs` | E2E verifikasi penautan Telegram |
 
 ## Verifikasi E2E
 

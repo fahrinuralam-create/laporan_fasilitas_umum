@@ -138,13 +138,15 @@ async function callTelegram<T = unknown>(
 
 export async function sendTelegramMessage(
   chatId: string,
-  text: string
+  text: string,
+  options?: { replyMarkup?: unknown }
 ): Promise<TelegramApiResult<{ message_id: number }>> {
   return callTelegram("sendMessage", {
     chat_id: chatId,
     text: text.slice(0, 4000),
     parse_mode: "HTML",
     disable_web_page_preview: true,
+    ...(options?.replyMarkup ? { reply_markup: options.replyMarkup } : {}),
   });
 }
 

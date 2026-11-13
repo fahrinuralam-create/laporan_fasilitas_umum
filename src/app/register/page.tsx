@@ -8,6 +8,7 @@ import { createUser } from "@/app/actions/auth";
 export default function RegisterPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
@@ -28,7 +29,7 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      const result = await createUser({ name, email, password });
+      const result = await createUser({ name, email, password, phone });
 
       if (result.error) {
         setError(result.error);
@@ -92,6 +93,24 @@ export default function RegisterPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-4 py-2 rounded-lg border border-zinc-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 mb-1">
+                Nomor HP
+              </label>
+              <input
+                type="tel"
+                inputMode="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="Contoh: 081234567890"
+                className="w-full px-4 py-2 rounded-lg border border-zinc-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+              />
+              <p className="mt-1 text-xs text-zinc-500">
+                Opsional. Jika diisi, pengajuan penautan Telegram dibuat
+                otomatis dan menunggu persetujuan admin/petugas.
+              </p>
             </div>
 
             <div>

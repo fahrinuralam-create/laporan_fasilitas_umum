@@ -80,6 +80,12 @@ export default async function AdminTelegramPage() {
           Pantau koneksi bot, atur webhook, dan lihat statistik notifikasi
           Telegram.
         </p>
+        <Link
+          href="/admin/telegram/verifikasi"
+          className="inline-flex mt-3 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition"
+        >
+          Verifikasi Pengajuan Telegram
+        </Link>
       </div>
 
       <TelegramAdminPanel initial={initial} />

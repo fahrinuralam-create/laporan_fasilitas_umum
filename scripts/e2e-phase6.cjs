@@ -469,7 +469,9 @@ async function main() {
     expectIncludes(systemPrompt, "Total laporan/tugas: 3", "AI context");
     expectIncludes(systemPrompt, "E2E6 Warga", "AI context");
     expectIncludes(systemPrompt, "DATA TERBARU", "AI context");
-    console.log("17. jalur AI memakai konteks pengguna & data laporan");
+    expectIncludes(systemPrompt, "SNAPSHOT DATABASE", "AI snapshot database");
+    expectIncludes(systemPrompt, "query_database", "AI tool database");
+    console.log("17. jalur AI memakai konteks pengguna, snapshot & tool database");
 
     // 17b. Pertanyaan "kenapa" harus diteruskan ke AI, bukan tertelan daftar laporan
     r = await ask(wargaJar, "Kenapa laporan saya lama diproses?");
@@ -491,6 +493,13 @@ async function main() {
     if (r.status !== 200 || r.data?.source !== "ai")
       throw new Error("Follow-up tidak memakai AI: " + r.raw);
     expectIncludes(r.data.reply, "AI_PHASE6_OK", "AI follow-up");
+
+    // 17b3. Pertanyaan yang meminta seluruh isi database harus memakai AI,
+    // bukan ringkasan fallback yang generik.
+    r = await ask(wargaJar, "Tampilkan semua laporan saya");
+    if (r.status !== 200 || r.data?.source !== "ai")
+      throw new Error("Pertanyaan database tidak memakai AI: " + r.raw);
+    expectIncludes(r.data.reply, "AI_PHASE6_OK", "AI database");
 
     // 17c. Pertanyaan di luar topik tidak boleh memanggil AI
     const lastPayloadBeforeOfftopic = mock.state.lastPayload;

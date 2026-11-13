@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
-import { getBotUsername, isTelegramConfigured } from "@/lib/telegram";
+import { getTelegramLinkStatus } from "@/lib/telegram-link";
 import TelegramLinkPanel from "@/components/telegram/TelegramLinkPanel";
 
 export const dynamic = "force-dynamic";
@@ -18,17 +17,8 @@ export default async function TelegramSettingsPage() {
   if (!user) redirect("/login");
   if (user.role !== "MASYARAKAT") redirect(dashboardPath(user.role));
 
-  const dbUser = await prisma.user.findUnique({
-    where: { id: user.id },
-    select: {
-      telegramChatId: true,
-      telegramUsername: true,
-      telegramLinkedAt: true,
-      telegramEnabled: true,
-    },
-  });
-
-  if (!dbUser) redirect("/login");
+  const status = await getTelegramLinkStatus(user.id);
+  if (!status) redirect("/login");
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -43,23 +33,12 @@ export default async function TelegramSettingsPage() {
           Pengaturan Telegram
         </h1>
         <p className="text-zinc-600">
-          Hubungkan akun Telegram untuk menerima notifikasi laporan dan
-          menggunakan bot pelaporan.
+          Hubungkan akun Telegram untuk menerima notifikasi laporan. Pengajuan
+          dibuat otomatis dari nomor HP dan diverifikasi oleh admin/petugas.
         </p>
       </div>
 
-      <TelegramLinkPanel
-        initial={{
-          linked: Boolean(dbUser.telegramChatId),
-          username: dbUser.telegramUsername,
-          linkedAt: dbUser.telegramLinkedAt
-            ? dbUser.telegramLinkedAt.toISOString()
-            : null,
-          enabled: dbUser.telegramEnabled,
-          botConfigured: isTelegramConfigured(),
-          botUsername: getBotUsername() || null,
-        }}
-      />
+      <TelegramLinkPanel initial={status} />
 
       <div className="mt-6 bg-white rounded-xl border border-zinc-200 shadow-sm p-6">
         <h2 className="text-lg font-bold text-zinc-900 mb-2">

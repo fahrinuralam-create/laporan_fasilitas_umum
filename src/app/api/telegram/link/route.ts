@@ -1,23 +1,46 @@
-import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
-import { getBotUsername, isTelegramConfigured } from "@/lib/telegram";
+import {
+  buildTelegramDeepLink,
+  createTelegramConfirmationToken,
+  getTelegramLinkStatus,
+  resubmitTelegramRequest,
+  revokeUserTelegramConnections,
+} from "@/lib/telegram-link";
 
-function statusPayload(user: {
-  telegramChatId: string | null;
-  telegramUsername: string | null;
-  telegramLinkedAt: Date | null;
-  telegramEnabled: boolean;
-}) {
-  return {
-    linked: Boolean(user.telegramChatId),
-    username: user.telegramUsername,
-    linkedAt: user.telegramLinkedAt ? user.telegramLinkedAt.toISOString() : null,
-    enabled: user.telegramEnabled,
-    botConfigured: isTelegramConfigured(),
-    botUsername: getBotUsername() || null,
-  };
+function tokenError(code: string) {
+  switch (code) {
+    case "NO_PHONE":
+      return {
+        status: 400,
+        body: {
+          error:
+            "Tambahkan nomor HP terlebih dahulu sebelum menautkan Telegram.",
+        },
+      };
+    case "ALREADY_ACTIVE":
+      return {
+        status: 409,
+        body: { error: "Akun Telegram sudah aktif." },
+      };
+    case "NEEDS_RESUBMIT":
+      return {
+        status: 409,
+        body: {
+          error:
+            "Pengajuan sebelumnya sudah ditolak/dicabut. Ajukan ulang terlebih dahulu.",
+          needsResubmit: true,
+        },
+      };
+    case "USER_NOT_FOUND":
+      return {
+        status: 404,
+        body: { error: "Pengguna tidak ditemukan." },
+      };
+    default:
+      return { status: 400, body: { error: "Gagal membuat kode konfirmasi." } };
+  }
 }
 
 export async function GET() {
@@ -32,24 +55,18 @@ export async function GET() {
     );
   }
 
-  const user = await prisma.user.findUnique({
-    where: { id: sessionUser.id },
-    select: {
-      telegramChatId: true,
-      telegramUsername: true,
-      telegramLinkedAt: true,
-      telegramEnabled: true,
-    },
-  });
-
-  if (!user) {
-    return NextResponse.json({ error: "Pengguna tidak ditemukan" }, { status: 404 });
+  const status = await getTelegramLinkStatus(sessionUser.id);
+  if (!status) {
+    return NextResponse.json(
+      { error: "Pengguna tidak ditemukan" },
+      { status: 404 }
+    );
   }
 
-  return NextResponse.json(statusPayload(user));
+  return NextResponse.json(status);
 }
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   const sessionUser = await getCurrentUser();
   if (!sessionUser) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -61,34 +78,39 @@ export async function POST() {
     );
   }
 
-  const now = new Date();
+  const body = (await request.json().catch(() => ({}))) as Record<
+    string,
+    unknown
+  >;
+  const action = String(body.action ?? "confirmation");
 
-  // Batalkan token lama yang belum dipakai agar hanya satu token aktif.
-  await prisma.telegramlinktoken.updateMany({
-    where: {
-      userId: sessionUser.id,
-      usedAt: null,
-      expiresAt: { gt: now },
-    },
-    data: { expiresAt: new Date(0) },
-  });
+  if (action === "resubmit") {
+    const result = await resubmitTelegramRequest(sessionUser.id);
+    if (!result.ok) {
+      const mapped = tokenError(result.code);
+      return NextResponse.json(mapped.body, { status: mapped.status });
+    }
+    const status = await getTelegramLinkStatus(sessionUser.id);
+    return NextResponse.json({
+      ...status,
+      message:
+        "Pengajuan ulang dibuat dan menunggu persetujuan admin/petugas.",
+    });
+  }
 
-  const token = crypto.randomBytes(24).toString("hex");
-  const expiresAt = new Date(now.getTime() + 15 * 60 * 1000);
+  const result = await createTelegramConfirmationToken(sessionUser.id);
+  if (!result.ok) {
+    const mapped = tokenError(result.code);
+    return NextResponse.json(mapped.body, { status: mapped.status });
+  }
 
-  await prisma.telegramlinktoken.create({
-    data: { token, userId: sessionUser.id, expiresAt },
-  });
-
-  const botUsername = getBotUsername();
-
+  const status = await getTelegramLinkStatus(sessionUser.id);
   return NextResponse.json({
-    token,
-    expiresAt: expiresAt.toISOString(),
-    command: `/start ${token}`,
-    deepLink: botUsername ? `https://t.me/${botUsername}?start=${token}` : null,
-    botConfigured: isTelegramConfigured(),
-    botUsername: botUsername || null,
+    ...status,
+    token: result.token,
+    expiresAt: result.expiresAt.toISOString(),
+    command: `/start ${result.token}`,
+    deepLink: buildTelegramDeepLink(result.token),
   });
 }
 
@@ -138,14 +160,14 @@ export async function DELETE() {
     );
   }
 
-  await prisma.user.update({
-    where: { id: sessionUser.id },
-    data: {
-      telegramChatId: null,
-      telegramLinkedAt: null,
-      telegramUsername: null,
-    },
+  await prisma.$transaction(async (tx) => {
+    await revokeUserTelegramConnections(tx, sessionUser.id);
   });
 
-  return NextResponse.json({ linked: false });
+  const status = await getTelegramLinkStatus(sessionUser.id);
+  return NextResponse.json({
+    ...status,
+    linked: false,
+    message: "Tautan Telegram diputuskan.",
+  });
 }

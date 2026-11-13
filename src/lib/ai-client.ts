@@ -3,9 +3,36 @@ import https from "https";
 import { getResolvedAiConfig } from "@/lib/ai-config";
 
 export type ChatContent = string | Array<Record<string, unknown>>;
+
+export type ChatToolCall = {
+  id: string;
+  type: "function";
+  function: {
+    name: string;
+    arguments: string;
+  };
+};
+
+export type ChatTool = {
+  type: "function";
+  function: {
+    name: string;
+    description?: string;
+    parameters: Record<string, unknown>;
+  };
+};
+
 export type ChatMessage = {
-  role: "system" | "user" | "assistant";
+  role: "system" | "user" | "assistant" | "tool";
   content: ChatContent;
+  tool_calls?: ChatToolCall[];
+  tool_call_id?: string;
+  name?: string;
+};
+
+export type ChatResult = {
+  content: string;
+  toolCalls: ChatToolCall[];
 };
 
 export class AiNotConfiguredError extends Error {
@@ -89,11 +116,44 @@ function requestProvider(
   });
 }
 
-async function callChat(
+function normalizeToolCalls(value: unknown): ChatToolCall[] {
+  if (!Array.isArray(value)) return [];
+
+  const calls: ChatToolCall[] = [];
+  value.forEach((item, index) => {
+    if (!item || typeof item !== "object") return;
+    const raw = item as {
+      id?: unknown;
+      type?: unknown;
+      function?: { name?: unknown; arguments?: unknown };
+    };
+    const name = raw.function?.name;
+    if (typeof name !== "string" || !name.trim()) return;
+
+    const args = raw.function?.arguments;
+    calls.push({
+      id:
+        typeof raw.id === "string" && raw.id
+          ? raw.id
+          : `tool_call_${index}_${Date.now()}`,
+      type: "function",
+      function: {
+        name: name.trim(),
+        arguments:
+          typeof args === "string" ? args : JSON.stringify(args ?? {}),
+      },
+    });
+  });
+
+  return calls;
+}
+
+async function callChatRaw(
   target: "text" | "vision",
   messages: ChatMessage[],
-  options: ChatOptions = {}
-): Promise<string> {
+  options: ChatOptions = {},
+  tools?: ChatTool[]
+): Promise<ChatResult> {
   const config = (await getResolvedAiConfig())[target];
 
   if (!config.apiKey) {
@@ -115,6 +175,9 @@ async function callChat(
     temperature: options.temperature ?? 0.2,
     max_tokens: options.maxTokens ?? 800,
     stream: false,
+    ...(tools && tools.length > 0
+      ? { tools, tool_choice: "auto" }
+      : {}),
   });
 
   const response = await requestProvider(
@@ -137,7 +200,12 @@ async function callChat(
   }
 
   let data: {
-    choices?: Array<{ message?: { content?: unknown } }>;
+    choices?: Array<{
+      message?: {
+        content?: unknown;
+        tool_calls?: unknown;
+      };
+    }>;
   } | null = null;
 
   try {
@@ -146,12 +214,28 @@ async function callChat(
     data = null;
   }
 
-  const content = data?.choices?.[0]?.message?.content;
-  if (typeof content !== "string" || !content.trim()) {
+  const message = data?.choices?.[0]?.message;
+  const content =
+    typeof message?.content === "string" ? message.content : "";
+  const toolCalls = normalizeToolCalls(message?.tool_calls);
+
+  if (!content.trim() && toolCalls.length === 0) {
     throw new Error("Respons AI tidak berisi teks yang valid");
   }
 
-  return content;
+  return { content, toolCalls };
+}
+
+async function callChat(
+  target: "text" | "vision",
+  messages: ChatMessage[],
+  options: ChatOptions = {}
+): Promise<string> {
+  const result = await callChatRaw(target, messages, options);
+  if (!result.content.trim()) {
+    throw new Error("Respons AI tidak berisi teks yang valid");
+  }
+  return result.content;
 }
 
 export async function aiChatText(
@@ -177,6 +261,18 @@ export async function aiChatMessages(
   options?: ChatOptions
 ): Promise<string> {
   return callChat("text", messages, options);
+}
+
+/**
+ * Percakapan multi-turn dengan dukungan function/tool calling. Model dapat
+ * meminta data tambahan dari database sebelum menyusun jawaban akhir.
+ */
+export async function aiChatMessagesWithTools(
+  messages: ChatMessage[],
+  tools: ChatTool[],
+  options?: ChatOptions
+): Promise<ChatResult> {
+  return callChatRaw("text", messages, options, tools);
 }
 
 export async function aiChatWithImage(

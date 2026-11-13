@@ -155,26 +155,65 @@ model telegramlinktoken {
   @@index([userId], map: "TelegramLinkToken_userId_idx")
 }
 
+// Pengajuan penautan Telegram dengan verifikasi admin/petugas.
+// Ditambahkan secara additive; tabel telegramlinktoken lama tetap dipertahankan.
+model telegramlinkrequest {
+  id                      String               @id @default(cuid())
+  userId                  String
+  phone                   String               @db.VarChar(32)
+  phoneNormalized         String               @db.VarChar(32)
+  previousPhoneNormalized String?              @db.VarChar(32)
+  requestType             String               @default("INITIAL") @db.VarChar(20)
+  status                  telegram_link_status @default(PENDING_ADMIN)
+  telegramUserId          String?              @db.VarChar(32)
+  telegramChatId          String?              @db.VarChar(32)
+  telegramUsername        String?              @db.VarChar(191)
+  candidateTelegramUserId String?              @db.VarChar(32)
+  candidateTelegramChatId String?              @db.VarChar(32)
+  candidateUsername       String?              @db.VarChar(191)
+  confirmationStartedAt   DateTime?
+  tokenHash               String?              @unique(map: "TelegramLinkRequest_tokenHash_key") @db.VarChar(64)
+  tokenExpiresAt          DateTime?
+  tokenUsedAt             DateTime?
+  confirmedAt             DateTime?
+  reviewedById            String?
+  reviewedAt              DateTime?
+  rejectionReason         String?              @db.Text
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+  user                    user                 @relation("TelegramLinkRequestUser", fields: [userId], references: [id], onDelete: Cascade, map: "TelegramLinkRequest_userId_fkey")
+  reviewedBy              user?                @relation("TelegramLinkRequestReviewer", fields: [reviewedById], references: [id], onDelete: SetNull, map: "TelegramLinkRequest_reviewedById_fkey")
+
+  @@index([userId], map: "TelegramLinkRequest_userId_idx")
+  @@index([status], map: "TelegramLinkRequest_status_idx")
+  @@index([phoneNormalized], map: "TelegramLinkRequest_phoneNormalized_idx")
+  @@index([telegramChatId], map: "TelegramLinkRequest_telegramChatId_idx")
+  @@index([createdAt], map: "TelegramLinkRequest_createdAt_idx")
+  @@index([reviewedById], map: "TelegramLinkRequest_reviewedById_idx")
+}
+
 model user {
-  id               String              @id @default(cuid())
-  name             String?
-  email            String?             @unique(map: "User_email_key")
-  password         String?
-  role             user_role           @default(MASYARAKAT)
-  phone            String?
-  address          String?             @db.Text
-  createdAt        DateTime            @default(now())
-  updatedAt        DateTime            @updatedAt
-  telegramChatId   String?             @unique(map: "User_telegramChatId_key")
-  telegramEnabled  Boolean             @default(true)
-  telegramLinkedAt DateTime?
-  telegramUsername String?
-  phoneNormalized  String?             @unique(map: "User_phoneNormalized_key")
-  notification     notification[]
-  reportsAssigned  report[]            @relation("ReportOfficer")
-  reportsReported  report[]            @relation("ReportReporter")
-  reporthistory    reporthistory[]
-  telegramlinktoken telegramlinktoken[]
+  id                   String                @id @default(cuid())
+  name                 String?
+  email                String?               @unique(map: "User_email_key")
+  password             String?
+  role                 user_role             @default(MASYARAKAT)
+  phone                String?
+  address              String?               @db.Text
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  telegramChatId       String?               @unique(map: "User_telegramChatId_key")
+  telegramEnabled      Boolean               @default(true)
+  telegramLinkedAt     DateTime?
+  telegramUsername     String?
+  phoneNormalized      String?               @unique(map: "User_phoneNormalized_key")
+  notification         notification[]
+  reportsAssigned      report[]              @relation("ReportOfficer")
+  reportsReported      report[]              @relation("ReportReporter")
+  reporthistory        reporthistory[]
+  telegramlinktoken    telegramlinktoken[]
+  telegramLinkRequests telegramlinkrequest[] @relation("TelegramLinkRequestUser")
+  telegramLinkReviews  telegramlinkrequest[] @relation("TelegramLinkRequestReviewer")
 
   @@index([email], map: "User_email_idx")
 }
@@ -215,6 +254,15 @@ enum user_role {
   ADMIN
   PETUGAS
   MASYARAKAT
+}
+
+enum telegram_link_status {
+  PENDING_ADMIN
+  PENDING_TELEGRAM
+  ACTIVE
+  REJECTED
+  REVOKED
+  EXPIRED
 }
 
 enum report_priority {
