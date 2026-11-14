@@ -50,9 +50,16 @@ export default function AiConfigForm({
     setTextProvider(id);
     const preset = presets.find((p) => p.id === id);
     if (preset?.baseUrl) setTextBaseUrl(preset.baseUrl);
-    if (preset?.textModels[0]) setTextModel(preset.textModels[0]);
+    setTextModel(preset?.textModels[0] ?? "");
     setTextModels(preset?.textModels ?? []);
   };
+
+  // Pastikan model yang sudah tersimpan tetap bisa ditampilkan sebagai nilai
+  // terpilih, meskipun tidak ada di daftar preset provider saat ini.
+  const modelOptions =
+    textModel && !textModels.includes(textModel)
+      ? [textModel, ...textModels]
+      : textModels;
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -226,14 +233,19 @@ export default function AiConfigForm({
               Model
             </label>
             <div className="flex gap-2">
-              <input
-                type="text"
-                list="text-models"
-                value={textModel}
-                onChange={(e) => setTextModel(e.target.value)}
-                placeholder="nama-model"
-                className="flex-1 px-3 py-2 rounded-lg border border-zinc-300 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              <div className="min-w-0 flex-1">
+                <select
+                  value={textModel}
+                  onChange={(e) => setTextModel(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-zinc-300 bg-white text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {modelOptions.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <button
                 type="button"
                 onClick={() => handleLoadModels()}
@@ -243,11 +255,6 @@ export default function AiConfigForm({
                 {loadingModels ? "..." : "Muat"}
               </button>
             </div>
-            <datalist id="text-models">
-              {textModels.map((m) => (
-                <option key={m} value={m} />
-              ))}
-            </datalist>
           </div>
 
           <div className="sm:col-span-2">
