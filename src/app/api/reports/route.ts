@@ -7,7 +7,7 @@ import {
   REPORT_CATEGORIES,
 } from "@/lib/report-utils";
 import { analyzeReportById } from "@/lib/report-ai";
-import { deliverTelegramNotification } from "@/lib/telegram-notify";
+import { deliverWhatsAppNotification } from "@/lib/whatsapp-notify";
 
 const CATEGORY_VALUES = REPORT_CATEGORIES.map((c) => c.value);
 
@@ -144,8 +144,8 @@ export async function POST(request: NextRequest) {
 
       const notificationId = created.notification[0]?.id;
       if (notificationId) {
-        void deliverTelegramNotification(notificationId).catch((error) => {
-          console.error("Gagal mengirim notifikasi Telegram:", error);
+        void deliverWhatsAppNotification(notificationId).catch((error) => {
+          console.error("Gagal mengirim notifikasi WhatsApp:", error);
         });
       }
 

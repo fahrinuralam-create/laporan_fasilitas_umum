@@ -108,8 +108,8 @@ export default function RegisterPage() {
                 className="w-full px-4 py-2 rounded-lg border border-zinc-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
               />
               <p className="mt-1 text-xs text-zinc-500">
-                Opsional. Jika diisi, pengajuan penautan Telegram dibuat
-                otomatis dan menunggu persetujuan admin/petugas.
+                Opsional. Jika diisi, pengajuan penautan WhatsApp dibuat
+                otomatis dan menunggu persetujuan admin.
               </p>
             </div>
 

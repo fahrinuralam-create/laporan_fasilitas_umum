@@ -10,8 +10,7 @@
     "postinstall": "prisma generate",
     "db:generate": "prisma generate",
     "db:studio": "prisma studio",
-    "db:check": "node scripts/db-check.cjs",
-    "telegram:poll": "node scripts/telegram-poll.cjs"
+    "db:check": "node scripts/db-check.cjs"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

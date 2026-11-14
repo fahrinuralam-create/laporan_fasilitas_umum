@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import type { VerificationRequestView } from "@/lib/telegram-link";
+import type { VerificationRequestView } from "@/lib/whatsapp-link";
 
-export type TelegramVerificationData = {
+export type WhatsAppVerificationData = {
   counts: {
     pendingAdmin: number;
-    pendingTelegram: number;
+    pendingVerification: number;
     active: number;
     total: number;
   };
@@ -18,7 +18,7 @@ function statusBadge(status: string): string {
   switch (status) {
     case "PENDING_ADMIN":
       return "bg-amber-100 text-amber-700 border-amber-200";
-    case "PENDING_TELEGRAM":
+    case "PENDING_VERIFICATION":
       return "bg-blue-100 text-blue-700 border-blue-200";
     case "ACTIVE":
       return "bg-green-100 text-green-700 border-green-200";
@@ -36,10 +36,10 @@ function formatDate(value: string | null): string {
   return new Date(value).toLocaleString("id-ID");
 }
 
-export default function TelegramVerificationPanel({
+export default function WhatsAppVerificationPanel({
   initial,
 }: {
-  initial: TelegramVerificationData;
+  initial: WhatsAppVerificationData;
 }) {
   const router = useRouter();
   const [data, setData] = useState(initial);
@@ -51,10 +51,15 @@ export default function TelegramVerificationPanel({
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [reason, setReason] = useState("");
 
-  const pending = data.requests.filter((r) => r.status === "PENDING_ADMIN");
+  const pendingAdmin = data.requests.filter(
+    (r) => r.status === "PENDING_ADMIN"
+  );
+  const pendingVerification = data.requests.filter(
+    (r) => r.status === "PENDING_VERIFICATION"
+  );
 
   const refresh = async () => {
-    const res = await fetch("/api/telegram/verification");
+    const res = await fetch("/api/whatsapp/verification");
     if (res.ok) {
       const fresh = await res.json();
       setData(fresh);
@@ -66,7 +71,7 @@ export default function TelegramVerificationPanel({
     setBusy(`approve-${id}`);
     setMessage(null);
     try {
-      const res = await fetch(`/api/telegram/verification/${id}`, {
+      const res = await fetch(`/api/whatsapp/verification/${id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "approve" }),
@@ -80,12 +85,12 @@ export default function TelegramVerificationPanel({
         return;
       }
       setMessage({
-        type: result.warning ? "err" : "ok",
+        type: result.otpSent ? "ok" : "err",
         text:
-          result.warning ||
-          (result.activated
-            ? "Pengajuan disetujui dan koneksi Telegram langsung aktif."
-            : "Pengajuan disetujui. Pengguna sekarang dapat mengonfirmasi identitas Telegram."),
+          result.message ||
+          (result.otpSent
+            ? "Pengajuan disetujui dan OTP dikirim."
+            : "Pengajuan disetujui, tetapi OTP gagal dikirim."),
       });
       await refresh();
     } catch {
@@ -103,7 +108,7 @@ export default function TelegramVerificationPanel({
     setBusy(`reject-${id}`);
     setMessage(null);
     try {
-      const res = await fetch(`/api/telegram/verification/${id}`, {
+      const res = await fetch(`/api/whatsapp/verification/${id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "reject", reason }),
@@ -127,6 +132,35 @@ export default function TelegramVerificationPanel({
     }
   };
 
+  const resendOtp = async (id: string) => {
+    setBusy(`otp-${id}`);
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/whatsapp/verification/${id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "resend-otp" }),
+      });
+      const result = await res.json();
+      if (!res.ok) {
+        setMessage({
+          type: "err",
+          text: result.error || "Gagal mengirim ulang OTP.",
+        });
+        return;
+      }
+      setMessage({
+        type: result.otpSent ? "ok" : "err",
+        text: result.message || "Permintaan kirim ulang OTP diproses.",
+      });
+      await refresh();
+    } catch {
+      setMessage({ type: "err", text: "Terjadi kesalahan saat mengirim OTP." });
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const stats = [
     {
       label: "Menunggu persetujuan",
@@ -134,12 +168,12 @@ export default function TelegramVerificationPanel({
       color: "text-amber-600",
     },
     {
-      label: "Menunggu konfirmasi Telegram",
-      value: data.counts.pendingTelegram,
+      label: "Menunggu verifikasi OTP",
+      value: data.counts.pendingVerification,
       color: "text-blue-600",
     },
     {
-      label: "Koneksi aktif",
+      label: "Penautan aktif",
       value: data.counts.active,
       color: "text-green-600",
     },
@@ -182,17 +216,18 @@ export default function TelegramVerificationPanel({
             Pengajuan Menunggu Persetujuan
           </h2>
           <p className="text-sm text-zinc-500">
-            Pengajuan dibuat otomatis saat pengguna menyimpan nomor HP.
+            Periksa identitas akun dan nomor WhatsApp sebelum menyetujui.
+            Persetujuan akan mengirim OTP ke nomor tersebut.
           </p>
         </div>
 
-        {pending.length === 0 ? (
+        {pendingAdmin.length === 0 ? (
           <p className="p-6 text-center text-sm text-zinc-500">
             Tidak ada pengajuan yang menunggu persetujuan.
           </p>
         ) : (
           <div className="space-y-4">
-            {pending.map((request) => (
+            {pendingAdmin.map((request) => (
               <div
                 key={request.id}
                 className="rounded-lg border border-zinc-200 p-4 space-y-3"
@@ -218,7 +253,7 @@ export default function TelegramVerificationPanel({
 
                 <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
                   <div>
-                    <dt className="text-zinc-500">Nomor HP</dt>
+                    <dt className="text-zinc-500">Nomor WhatsApp diajukan</dt>
                     <dd className="font-medium text-zinc-900">
                       {request.phoneDisplay}
                     </dd>
@@ -237,28 +272,20 @@ export default function TelegramVerificationPanel({
                   </div>
                   {request.previousPhoneDisplay && (
                     <div>
-                      <dt className="text-zinc-500">Nomor HP sebelumnya</dt>
+                      <dt className="text-zinc-500">Nomor sebelumnya</dt>
                       <dd className="font-medium text-zinc-900">
                         {request.previousPhoneDisplay}
                       </dd>
                     </div>
                   )}
                   <div>
-                    <dt className="text-zinc-500">Konfirmasi Telegram</dt>
+                    <dt className="text-zinc-500">Nomor terverifikasi saat ini</dt>
                     <dd className="font-medium text-zinc-900">
-                      {request.confirmedAt
-                        ? `Terkonfirmasi ${formatDate(request.confirmedAt)}`
-                        : "Belum dikonfirmasi"}
+                      {request.user.whatsappNumber
+                        ? request.user.whatsappNumber
+                        : "-"}
                     </dd>
                   </div>
-                  {request.telegramUsername && (
-                    <div>
-                      <dt className="text-zinc-500">Username Telegram</dt>
-                      <dd className="font-medium text-zinc-900">
-                        @{request.telegramUsername}
-                      </dd>
-                    </div>
-                  )}
                 </dl>
 
                 {rejectingId === request.id ? (
@@ -301,7 +328,7 @@ export default function TelegramVerificationPanel({
                     >
                       {busy === `approve-${request.id}`
                         ? "Menyetujui..."
-                        : "Setujui"}
+                        : "Setujui & Kirim OTP"}
                     </button>
                     <button
                       onClick={() => {
@@ -316,6 +343,63 @@ export default function TelegramVerificationPanel({
                     </button>
                   </div>
                 )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="bg-white rounded-xl border border-zinc-200 shadow-sm p-6">
+        <div className="mb-4">
+          <h2 className="text-lg font-bold text-zinc-900">
+            Menunggu Verifikasi OTP
+          </h2>
+          <p className="text-sm text-zinc-500">
+            Persetujuan admin sudah diberikan, tetapi kepemilikan nomor belum
+            terbukti sampai pengguna memasukkan OTP.
+          </p>
+        </div>
+
+        {pendingVerification.length === 0 ? (
+          <p className="p-6 text-center text-sm text-zinc-500">
+            Tidak ada pengajuan yang menunggu verifikasi OTP.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {pendingVerification.map((request) => (
+              <div
+                key={request.id}
+                className="rounded-lg border border-zinc-200 p-4 flex flex-wrap items-start justify-between gap-3"
+              >
+                <div className="text-sm">
+                  <p className="font-semibold text-zinc-900">
+                    {request.user.name || request.user.email || request.userId}
+                  </p>
+                  <p className="text-zinc-600">
+                    {request.phoneDisplay} · {request.requestTypeLabel}
+                  </p>
+                  <p className="text-xs text-zinc-500 mt-1">
+                    OTP terkirim: {formatDate(request.otpSentAt)} · Percobaan:{" "}
+                    {request.otpAttempts}/{request.otpMaxAttempts}
+                    {request.otpExpiresAt
+                      ? ` · Berlaku sampai ${formatDate(request.otpExpiresAt)}`
+                      : ""}
+                  </p>
+                  {request.otpSendError && (
+                    <p className="text-xs text-red-600 mt-1">
+                      Error pengiriman: {request.otpSendError}
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={() => resendOtp(request.id)}
+                  disabled={busy !== null}
+                  className="px-4 py-2 rounded-lg border border-blue-300 text-blue-700 text-sm font-semibold hover:bg-blue-50 disabled:opacity-50 transition"
+                >
+                  {busy === `otp-${request.id}`
+                    ? "Mengirim..."
+                    : "Kirim Ulang OTP"}
+                </button>
               </div>
             ))}
           </div>
@@ -342,10 +426,12 @@ export default function TelegramVerificationPanel({
               <thead className="bg-zinc-50 text-zinc-500 text-xs uppercase">
                 <tr>
                   <th className="text-left font-medium px-4 py-3">Pengguna</th>
-                  <th className="text-left font-medium px-4 py-3">Nomor HP</th>
+                  <th className="text-left font-medium px-4 py-3">
+                    Nomor WhatsApp
+                  </th>
                   <th className="text-left font-medium px-4 py-3">Status</th>
                   <th className="text-left font-medium px-4 py-3">
-                    Konfirmasi Telegram
+                    Verifikasi OTP
                   </th>
                   <th className="text-left font-medium px-4 py-3">Diproses</th>
                   <th className="text-left font-medium px-4 py-3">Tanggal</th>
@@ -387,16 +473,29 @@ export default function TelegramVerificationPanel({
                       )}
                     </td>
                     <td className="px-4 py-3 text-zinc-700">
-                      {request.confirmedAt ? (
+                      {request.otpVerifiedAt ? (
+                        <>
+                          <p>{formatDate(request.otpVerifiedAt)}</p>
+                          <p className="text-xs text-zinc-500">
+                            Terverifikasi
+                          </p>
+                        </>
+                      ) : request.otpSentAt || request.otpSendError ? (
                         <>
                           <p>
-                            {request.telegramUsername
-                              ? `@${request.telegramUsername}`
-                              : request.telegramUserId || "-"}
+                            {request.otpSentAt
+                              ? `Terkirim ${formatDate(request.otpSentAt)}`
+                              : "Gagal dikirim"}
                           </p>
                           <p className="text-xs text-zinc-500">
-                            {formatDate(request.confirmedAt)}
+                            Percobaan {request.otpAttempts}/
+                            {request.otpMaxAttempts}
                           </p>
+                          {request.otpSendError && (
+                            <p className="text-xs text-red-600">
+                              {request.otpSendError}
+                            </p>
+                          )}
                         </>
                       ) : (
                         <span className="text-zinc-400">-</span>

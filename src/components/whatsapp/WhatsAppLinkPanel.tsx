@@ -1,93 +1,90 @@
 "use client";
 
 import { useState } from "react";
-import type { TelegramLinkStatus } from "@/lib/telegram-link";
+import type { WhatsAppLinkStatus } from "@/lib/whatsapp-link";
 
-type TokenInfo = {
-  command: string;
-  deepLink: string | null;
-  expiresAt: string;
-};
-
-export default function TelegramLinkPanel({
+export default function WhatsAppLinkPanel({
   initial,
 }: {
-  initial: TelegramLinkStatus;
+  initial: WhatsAppLinkStatus;
 }) {
-  const [status, setStatus] = useState<TelegramLinkStatus>(initial);
-  const [phone, setPhone] = useState(initial.phone || "");
-  const [token, setToken] = useState<TokenInfo | null>(null);
+  const [status, setStatus] = useState<WhatsAppLinkStatus>(initial);
+  const [phone, setPhone] = useState(
+    initial.request?.phoneDisplay || initial.numberDisplay || initial.phone || ""
+  );
+  const [otp, setOtp] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
   const request = status.request;
   const statusText = status.linked
-    ? "Tertaut & aktif"
+    ? "Tertaut & terverifikasi"
     : request
       ? request.statusLabel
       : "Belum tertaut";
 
-  const savePhone = async (e: React.FormEvent) => {
+  const applyStatus = (data: WhatsAppLinkStatus & { message?: string }) => {
+    setStatus(data);
+    const nextPhone =
+      data.request?.phoneDisplay || data.numberDisplay || data.phone || "";
+    if (nextPhone) setPhone(nextPhone);
+  };
+
+  const submitNumber = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy("phone");
     setError("");
     setNotice("");
     try {
-      const res = await fetch("/api/telegram/phone", {
-        method: "PATCH",
+      const res = await fetch("/api/whatsapp/request", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone }),
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "Gagal menyimpan nomor HP");
+        setError(data.error || "Gagal menyimpan nomor WhatsApp");
         return;
       }
-      setStatus(data);
-      setPhone(data.phone || "");
-      setToken(null);
-      setNotice(data.message || "Nomor HP disimpan.");
+      applyStatus(data);
+      setOtp("");
+      setNotice(data.message || "Pengajuan nomor WhatsApp dibuat.");
     } catch {
-      setError("Terjadi kesalahan saat menyimpan nomor HP");
+      setError("Terjadi kesalahan saat menyimpan nomor WhatsApp");
     } finally {
       setBusy(null);
     }
   };
 
-  const createToken = async (action: "confirmation" | "resubmit" = "confirmation") => {
-    setBusy(action);
+  const verifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy("verify");
     setError("");
     setNotice("");
     try {
-      const res = await fetch("/api/telegram/link", {
+      const res = await fetch("/api/whatsapp/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({ code: otp }),
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "Gagal membuat kode konfirmasi");
-        if (data.needsResubmit) setToken(null);
+        setError(
+          data.remainingAttempts !== undefined
+            ? `${data.error || "Kode OTP salah"} Sisa percobaan: ${data.remainingAttempts}.`
+            : data.error || "Verifikasi OTP gagal"
+        );
+        if (data.error?.includes("kedaluwarsa") || data.error?.includes("Batas")) {
+          await checkStatus();
+        }
         return;
       }
-      setStatus(data);
-      setToken(
-        data.token
-          ? {
-              command: data.command,
-              deepLink: data.deepLink,
-              expiresAt: data.expiresAt,
-            }
-          : null
-      );
-      setNotice(
-        action === "resubmit"
-          ? data.message || "Pengajuan ulang dibuat."
-          : "Kode konfirmasi dibuat. Buka bot Telegram lalu bagikan kontak Anda."
-      );
+      applyStatus(data);
+      setOtp("");
+      setNotice(data.message || "Nomor WhatsApp berhasil diverifikasi.");
     } catch {
-      setError("Terjadi kesalahan saat membuat kode konfirmasi");
+      setError("Terjadi kesalahan saat memverifikasi OTP");
     } finally {
       setBusy(null);
     }
@@ -98,22 +95,44 @@ export default function TelegramLinkPanel({
     setError("");
     setNotice("");
     try {
-      const res = await fetch("/api/telegram/link");
+      const res = await fetch("/api/whatsapp/status");
       const data = await res.json();
       if (!res.ok) {
         setError(data.error || "Gagal memeriksa status");
         return;
       }
-      setStatus(data);
-      setPhone(data.phone || "");
-      if (data.linked) {
-        setToken(null);
-        setNotice("Akun Telegram berhasil aktif.");
-      } else {
-        setNotice("Status diperbarui.");
-      }
+      applyStatus(data);
+      setNotice(
+        data.linked
+          ? "Nomor WhatsApp aktif."
+          : "Status pengajuan diperbarui."
+      );
     } catch {
       setError("Terjadi kesalahan saat memeriksa status");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const resubmit = async () => {
+    setBusy("resubmit");
+    setError("");
+    setNotice("");
+    try {
+      const res = await fetch("/api/whatsapp/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "resubmit" }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Gagal membuat pengajuan ulang");
+        return;
+      }
+      applyStatus(data);
+      setNotice(data.message || "Pengajuan ulang dibuat.");
+    } catch {
+      setError("Terjadi kesalahan saat membuat pengajuan ulang");
     } finally {
       setBusy(null);
     }
@@ -124,17 +143,17 @@ export default function TelegramLinkPanel({
     setError("");
     setNotice("");
     try {
-      const res = await fetch("/api/telegram/link", { method: "DELETE" });
+      const res = await fetch("/api/whatsapp/status", { method: "DELETE" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data.error || "Gagal memutuskan tautan");
+        setError(data.error || "Gagal memutuskan penautan");
         return;
       }
       setStatus(data);
-      setToken(null);
-      setNotice(data.message || "Tautan Telegram diputuskan.");
+      setOtp("");
+      setNotice(data.message || "Penautan WhatsApp diputuskan.");
     } catch {
-      setError("Terjadi kesalahan saat memutuskan tautan");
+      setError("Terjadi kesalahan saat memutuskan penautan");
     } finally {
       setBusy(null);
     }
@@ -146,7 +165,7 @@ export default function TelegramLinkPanel({
     setNotice("");
     const next = !status.enabled;
     try {
-      const res = await fetch("/api/telegram/link", {
+      const res = await fetch("/api/whatsapp/status", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ enabled: next }),
@@ -159,8 +178,8 @@ export default function TelegramLinkPanel({
       setStatus((prev) => ({ ...prev, enabled: next }));
       setNotice(
         next
-          ? "Notifikasi Telegram diaktifkan."
-          : "Notifikasi Telegram dinonaktifkan."
+          ? "Notifikasi WhatsApp diaktifkan."
+          : "Notifikasi WhatsApp dinonaktifkan."
       );
     } catch {
       setError("Terjadi kesalahan saat mengubah pengaturan");
@@ -169,25 +188,15 @@ export default function TelegramLinkPanel({
     }
   };
 
-  const copyCommand = async () => {
-    if (!token) return;
-    try {
-      await navigator.clipboard.writeText(token.command);
-      setNotice("Perintah disalin ke clipboard.");
-    } catch {
-      setError("Gagal menyalin. Salin perintah secara manual.");
-    }
-  };
-
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-xl border border-zinc-200 shadow-sm p-6 space-y-5">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="text-lg font-bold text-zinc-900">Status Tautan</h2>
+            <h2 className="text-lg font-bold text-zinc-900">Status Penautan</h2>
             <p className="text-sm text-zinc-500">
-              Notifikasi laporan dikirim ke chat Telegram setelah nomor HP dan
-              identitas Telegram diverifikasi.
+              Notifikasi laporan dikirim ke WhatsApp setelah nomor disetujui
+              admin dan diverifikasi dengan OTP.
             </p>
           </div>
           <span
@@ -205,11 +214,11 @@ export default function TelegramLinkPanel({
           </span>
         </div>
 
-        {!status.botConfigured && (
+        {!status.fonnteConfigured && (
           <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800">
-            Bot Telegram belum dikonfigurasi oleh admin (TELEGRAM_BOT_TOKEN
-            kosong). Pengajuan tetap dapat diproses, tetapi notifikasi belum akan
-            terkirim sampai admin mengaturnya.
+            Layanan WhatsApp (Fonnte) belum dikonfigurasi oleh admin. Pengajuan
+            tetap dapat diproses, tetapi OTP dan notifikasi belum dapat dikirim
+            sampai <code>FONNTE_API_TOKEN</code> diatur.
           </div>
         )}
 
@@ -224,10 +233,10 @@ export default function TelegramLinkPanel({
           </div>
         )}
 
-        <form onSubmit={savePhone} className="space-y-3">
+        <form onSubmit={submitNumber} className="space-y-3">
           <div>
             <label className="block text-sm font-medium text-zinc-700 mb-1">
-              Nomor HP terdaftar
+              Nomor WhatsApp
             </label>
             <div className="flex flex-col sm:flex-row gap-2">
               <input
@@ -243,13 +252,12 @@ export default function TelegramLinkPanel({
                 disabled={busy !== null}
                 className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 transition"
               >
-                {busy === "phone" ? "Menyimpan..." : "Simpan Nomor HP"}
+                {busy === "phone" ? "Mengajukan..." : "Ajukan Nomor"}
               </button>
             </div>
             <p className="mt-1 text-xs text-zinc-500">
-              Format yang didukung: 08..., 62..., atau +62.... Jika nomor
-              berubah, tautan Telegram lama dinonaktifkan dan pengajuan baru
-              otomatis menunggu persetujuan admin/petugas.
+              Format yang didukung: 08..., 62..., atau +62.... Nomor lama tetap
+              aktif sampai nomor baru berhasil diverifikasi.
             </p>
           </div>
         </form>
@@ -260,16 +268,16 @@ export default function TelegramLinkPanel({
           <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
               <div>
-                <p className="text-zinc-500">Username Telegram</p>
+                <p className="text-zinc-500">Nomor WhatsApp aktif</p>
                 <p className="font-medium text-zinc-900">
-                  {status.username ? `@${status.username}` : "-"}
+                  {status.numberDisplay || "-"}
                 </p>
               </div>
               <div>
-                <p className="text-zinc-500">Tanggal aktif</p>
+                <p className="text-zinc-500">Tanggal verifikasi</p>
                 <p className="font-medium text-zinc-900">
-                  {status.linkedAt
-                    ? new Date(status.linkedAt).toLocaleString("id-ID")
+                  {status.verifiedAt
+                    ? new Date(status.verifiedAt).toLocaleString("id-ID")
                     : "-"}
                 </p>
               </div>
@@ -282,7 +290,7 @@ export default function TelegramLinkPanel({
                 onChange={toggleEnabled}
                 disabled={busy !== null}
               />
-              Aktifkan notifikasi Telegram untuk akun ini
+              Aktifkan notifikasi WhatsApp untuk akun ini
             </label>
 
             <div className="flex flex-wrap gap-2">
@@ -300,45 +308,45 @@ export default function TelegramLinkPanel({
                 type="button"
                 className="px-4 py-2 rounded-lg border border-red-300 text-red-600 text-sm font-semibold hover:bg-red-50 disabled:opacity-50 transition"
               >
-                {busy === "unlink" ? "Memutuskan..." : "Putuskan Tautan"}
+                {busy === "unlink" ? "Memutuskan..." : "Putuskan Penautan"}
               </button>
             </div>
-          </div>
-        ) : !status.phone ? (
-          <div className="p-4 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800">
-            Tambahkan nomor HP terlebih dahulu. Pengajuan penautan Telegram
-            dibuat otomatis setelah nomor HP disimpan.
+
+            {request && request.status !== "ACTIVE" && (
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                Ada pengajuan nomor baru ({request.phoneDisplay}) dengan status{" "}
+                {request.statusLabel.toLowerCase()}. Nomor aktif saat ini tetap
+                digunakan sampai pengajuan baru berhasil diverifikasi.
+              </p>
+            )}
           </div>
         ) : !request ? (
           <div className="space-y-3">
-            <p className="text-sm text-zinc-600">
-              Nomor HP sudah terdaftar, tetapi belum ada pengajuan penautan
-              Telegram. Buat pengajuan untuk memulai verifikasi admin/petugas.
-            </p>
-            <button
-              onClick={() => createToken("resubmit")}
-              disabled={busy !== null}
-              className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 transition"
-            >
-              {busy === "resubmit" ? "Membuat pengajuan..." : "Ajukan Penautan"}
-            </button>
+            <div className="p-4 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800">
+              Belum ada pengajuan nomor WhatsApp. Masukkan nomor di atas untuk
+              memulai proses persetujuan admin dan verifikasi OTP.
+            </div>
+            {status.phoneNormalized && (
+              <button
+                onClick={resubmit}
+                disabled={busy !== null}
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 transition"
+              >
+                {busy === "resubmit" ? "Mengajukan..." : "Ajukan Nomor Terdaftar"}
+              </button>
+            )}
           </div>
         ) : request.status === "PENDING_ADMIN" ? (
           <div className="space-y-3">
             <div className="p-4 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800">
-              <p className="font-semibold">Menunggu persetujuan admin/petugas.</p>
+              <p className="font-semibold">
+                Menunggu persetujuan admin.
+              </p>
               <p className="mt-1">
                 Pengajuan untuk nomor{" "}
                 <span className="font-medium">{request.phoneDisplay}</span>{" "}
-                dibuat pada{" "}
-                {new Date(request.createdAt).toLocaleString("id-ID")}.
+                dibuat pada {new Date(request.createdAt).toLocaleString("id-ID")}.
               </p>
-              {request.confirmedAt && (
-                <p className="mt-1">
-                  Identitas Telegram sudah dikonfirmasi. Koneksi akan aktif
-                  setelah admin/petugas menyetujui pengajuan.
-                </p>
-              )}
             </div>
             <button
               onClick={checkStatus}
@@ -349,71 +357,72 @@ export default function TelegramLinkPanel({
               {busy === "check" ? "Memeriksa..." : "Cek Status"}
             </button>
           </div>
-        ) : request.status === "PENDING_TELEGRAM" ? (
+        ) : request.status === "PENDING_VERIFICATION" ? (
           <div className="space-y-4">
             <div className="p-4 rounded-lg bg-blue-50 border border-blue-200 text-sm text-blue-800">
               <p className="font-semibold">
-                Pengajuan disetujui. Konfirmasi identitas Telegram Anda.
+                Pengajuan disetujui. Verifikasi kepemilikan nomor.
               </p>
               <p className="mt-1">
-                Buka bot Telegram, kirim perintah konfirmasi, lalu tekan tombol{" "}
-                <b>Bagikan Nomor HP</b>. Kontak harus berasal dari akun Telegram
-                Anda sendiri dan nomornya harus sama dengan{" "}
+                Kode OTP telah dikirim ke WhatsApp{" "}
                 <span className="font-medium">{request.phoneDisplay}</span>.
+                Masukkan kode 6 digit di bawah ini.
+              </p>
+              {request.otpSentAt && (
+                <p className="mt-1 text-xs">
+                  OTP dikirim {new Date(request.otpSentAt).toLocaleString("id-ID")}
+                  {request.otpExpiresAt
+                    ? ` · berlaku sampai ${new Date(
+                        request.otpExpiresAt
+                      ).toLocaleString("id-ID")}`
+                    : ""}
+                </p>
+              )}
+              {request.otpSendError && (
+                <p className="mt-1 text-xs text-red-700">
+                  Pengiriman OTP terakhir gagal: {request.otpSendError}. Minta
+                  admin mengirim ulang OTP.
+                </p>
+              )}
+              <p className="mt-1 text-xs">
+                Sisa percobaan:{" "}
+                {Math.max(
+                  0,
+                  request.otpMaxAttempts - request.otpAttempts
+                )}{" "}
+                dari {request.otpMaxAttempts}.
               </p>
             </div>
 
-            {!token && (
+            <form onSubmit={verifyOtp} className="flex flex-col sm:flex-row gap-2">
+              <input
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                value={otp}
+                onChange={(e) =>
+                  setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
+                }
+                placeholder="Kode OTP 6 digit"
+                className="flex-1 px-4 py-2 rounded-lg border border-zinc-300 tracking-[0.3em] font-semibold focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+              />
               <button
-                onClick={() => createToken("confirmation")}
-                disabled={busy !== null}
+                type="submit"
+                disabled={busy !== null || otp.length !== 6}
                 className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 transition"
               >
-                {busy === "confirmation"
-                  ? "Membuat kode..."
-                  : "Buat Tautan Konfirmasi"}
+                {busy === "verify" ? "Memverifikasi..." : "Verifikasi OTP"}
               </button>
-            )}
+            </form>
 
-            {token && (
-              <div className="p-4 rounded-lg border border-zinc-200 bg-zinc-50 space-y-3">
-                <p className="text-xs text-zinc-500">
-                  Kode berlaku sampai{" "}
-                  {new Date(token.expiresAt).toLocaleString("id-ID")} dan hanya
-                  bisa digunakan satu kali.
-                </p>
-                <div className="flex flex-wrap items-center gap-2">
-                  {token.deepLink && (
-                    <a
-                      href={token.deepLink}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-4 py-2 rounded-lg bg-sky-600 text-white text-sm font-semibold hover:bg-sky-700 transition"
-                    >
-                      Buka Bot Telegram
-                    </a>
-                  )}
-                  <button
-                    onClick={copyCommand}
-                    type="button"
-                    className="px-4 py-2 rounded-lg border border-zinc-300 text-sm font-medium text-zinc-700 hover:bg-white transition"
-                  >
-                    Salin Perintah
-                  </button>
-                  <button
-                    onClick={checkStatus}
-                    disabled={busy !== null}
-                    type="button"
-                    className="px-4 py-2 rounded-lg border border-zinc-300 text-sm font-medium text-zinc-700 hover:bg-white disabled:opacity-50 transition"
-                  >
-                    {busy === "check" ? "Memeriksa..." : "Cek Status"}
-                  </button>
-                </div>
-                <code className="block px-3 py-2 rounded-lg bg-white border border-zinc-200 text-sm break-all">
-                  {token.command}
-                </code>
-              </div>
-            )}
+            <button
+              onClick={checkStatus}
+              disabled={busy !== null}
+              type="button"
+              className="px-4 py-2 rounded-lg border border-zinc-300 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 transition"
+            >
+              {busy === "check" ? "Memeriksa..." : "Cek Status"}
+            </button>
           </div>
         ) : request.status === "REJECTED" ? (
           <div className="space-y-3">
@@ -426,15 +435,12 @@ export default function TelegramLinkPanel({
                 <p className="mt-1 text-xs">
                   Diputuskan{" "}
                   {new Date(request.reviewedAt).toLocaleString("id-ID")}
-                  {request.reviewerName
-                    ? ` oleh ${request.reviewerName}`
-                    : ""}
-                  .
+                  {request.reviewerName ? ` oleh ${request.reviewerName}` : ""}.
                 </p>
               )}
             </div>
             <button
-              onClick={() => createToken("resubmit")}
+              onClick={resubmit}
               disabled={busy !== null}
               className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 transition"
             >
@@ -448,11 +454,11 @@ export default function TelegramLinkPanel({
                 Pengajuan berstatus {request.statusLabel.toLowerCase()}.
               </p>
               <p className="mt-1">
-                Ajukan penautan ulang untuk memulai verifikasi kembali.
+                Ajukan ulang untuk memulai proses persetujuan dan verifikasi OTP.
               </p>
             </div>
             <button
-              onClick={() => createToken("resubmit")}
+              onClick={resubmit}
               disabled={busy !== null}
               className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 transition"
             >

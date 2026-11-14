@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/session";
-import { getTelegramVerificationData } from "@/lib/telegram-link";
+import { getWhatsAppVerificationData } from "@/lib/whatsapp-link";
 
 function canVerify(role: string) {
-  return role === "ADMIN" || role === "PETUGAS";
+  return role === "ADMIN";
 }
 
 export async function GET() {
@@ -15,6 +15,6 @@ export async function GET() {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const data = await getTelegramVerificationData();
+  const data = await getWhatsAppVerificationData();
   return NextResponse.json(data);
 }

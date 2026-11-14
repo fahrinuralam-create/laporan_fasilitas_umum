@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { normalizePhoneNumber } from "@/lib/phone";
-import { createTelegramLinkRequest } from "@/lib/telegram-link";
+import { createWhatsAppLinkRequest } from "@/lib/whatsapp-link";
 
 export async function createUser(data: {
   name: string;
@@ -36,6 +36,17 @@ export async function createUser(data: {
     if (phoneOwner) {
       return { error: "Nomor HP sudah digunakan oleh akun lain" };
     }
+
+    const pendingOwner = await prisma.whatsapplinkrequest.findFirst({
+      where: {
+        phoneNormalized,
+        status: { in: ["PENDING_ADMIN", "PENDING_VERIFICATION", "ACTIVE"] },
+      },
+      select: { id: true },
+    });
+    if (pendingOwner) {
+      return { error: "Nomor HP sedang digunakan oleh akun lain" };
+    }
   }
 
   const hashedPassword = await bcrypt.hash(data.password, 12);
@@ -57,7 +68,7 @@ export async function createUser(data: {
 
       // Pengajuan otomatis dibuat atomik bersama akun.
       if (phoneNormalized) {
-        await createTelegramLinkRequest(tx, {
+        await createWhatsAppLinkRequest(tx, {
           userId: created.id,
           phoneNormalized,
           requestType: "INITIAL",

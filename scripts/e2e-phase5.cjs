@@ -195,45 +195,6 @@ async function waitForReport(jar, id, predicate, timeoutMs = 20000) {
   );
 }
 
-async function webhookUpdate(chatId, text, username = "e2e5bot") {
-  return api("/api/telegram/webhook", null, {
-    method: "POST",
-    body: JSON.stringify({
-      update_id: Math.floor(Math.random() * 1e9),
-      message: {
-        message_id: Math.floor(Math.random() * 1e9),
-        chat: { id: chatId, type: "private" },
-        from: { id: chatId, is_bot: false, first_name: "E2E5", username },
-        text,
-      },
-    }),
-  });
-}
-
-async function webhookContact(
-  chatId,
-  phone,
-  contactUserId = chatId,
-  username = "e2e5bot"
-) {
-  return api("/api/telegram/webhook", null, {
-    method: "POST",
-    body: JSON.stringify({
-      update_id: Math.floor(Math.random() * 1e9),
-      message: {
-        message_id: Math.floor(Math.random() * 1e9),
-        chat: { id: chatId, type: "private" },
-        from: { id: chatId, is_bot: false, first_name: "E2E5", username },
-        contact: {
-          phone_number: phone,
-          first_name: "E2E5",
-          user_id: contactUserId,
-        },
-      },
-    }),
-  });
-}
-
 async function main() {
   const startMs = Date.now();
   const suffix = Math.random().toString(36).slice(2, 10).toUpperCase();
@@ -260,10 +221,10 @@ async function main() {
           ? {
               phone: null,
               phoneNormalized: null,
-              telegramChatId: null,
-              telegramLinkedAt: null,
-              telegramUsername: null,
-              telegramEnabled: true,
+              whatsappNumber: null,
+              whatsappLinkedAt: null,
+              whatsappVerifiedAt: null,
+              whatsappEnabled: true,
             }
           : {}),
       },
@@ -437,127 +398,6 @@ async function main() {
       "7. foto tidak sesuai otomatis ditolak + riwayat/notifikasi ok"
     );
 
-    // Status Telegram awal
-    r = await api("/api/telegram/link", wargaJar);
-    if (r.status !== 200 || r.data.linked !== false)
-      throw new Error("Status Telegram awal salah: " + r.raw);
-    console.log("8. status Telegram awal: belum tertaut");
-
-    // Simpan nomor HP -> pengajuan otomatis PENDING_ADMIN
-    r = await api("/api/telegram/phone", wargaJar, {
-      method: "PATCH",
-      body: JSON.stringify({ phone: "081234567890" }),
-    });
-    if (
-      r.status !== 200 ||
-      !r.data.request ||
-      r.data.request.status !== "PENDING_ADMIN"
-    )
-      throw new Error("Pengajuan otomatis gagal dibuat: " + r.raw);
-    const telegramRequestId = r.data.request.id;
-
-    // Pengajuan terlihat di halaman verifikasi admin
-    r = await api("/api/telegram/verification", adminJar);
-    if (
-      r.status !== 200 ||
-      !r.data.requests.some((item) => item.id === telegramRequestId)
-    )
-      throw new Error("Pengajuan tidak muncul di verifikasi admin: " + r.raw);
-
-    // Admin menyetujui
-    r = await api(`/api/telegram/verification/${telegramRequestId}`, adminJar, {
-      method: "POST",
-      body: JSON.stringify({ action: "approve" }),
-    });
-    if (r.status !== 200 || r.data.request.status !== "PENDING_TELEGRAM")
-      throw new Error("Persetujuan admin gagal: " + r.raw);
-
-    // Pengguna membuat token konfirmasi
-    r = await api("/api/telegram/link", wargaJar, {
-      method: "POST",
-      body: JSON.stringify({ action: "confirmation" }),
-    });
-    if (r.status !== 200 || !r.data.token || !r.data.command)
-      throw new Error("Gagal membuat token konfirmasi: " + r.raw);
-    const token = r.data.token;
-    const chatId = 900000000 + Math.floor(Math.random() * 99999999);
-
-    // /start belum mengaktifkan; harus konfirmasi kontak sendiri
-    r = await webhookUpdate(chatId, `/start ${token}`);
-    if (r.status !== 200) throw new Error("Webhook /start gagal: " + r.raw);
-
-    r = await api("/api/telegram/link", wargaJar);
-    if (r.data.linked !== false)
-      throw new Error("/start tidak boleh langsung mengaktifkan Telegram");
-
-    // Kontak milik orang lain ditolak
-    r = await webhookContact(chatId, "6281234567890", chatId + 1);
-    if (r.status !== 200) throw new Error("Webhook kontak gagal: " + r.raw);
-    r = await api("/api/telegram/link", wargaJar);
-    if (r.data.linked !== false)
-      throw new Error("Kontak milik orang lain tidak boleh diterima");
-
-    // Kontak sendiri dengan nomor cocok -> aktif
-    r = await webhookContact(chatId, "6281234567890");
-    if (r.status !== 200) throw new Error("Webhook kontak gagal: " + r.raw);
-
-    r = await api("/api/telegram/link", wargaJar);
-    if (r.data.linked !== true || r.data.username !== "e2e5bot")
-      throw new Error("Tautan Telegram tidak tersimpan: " + r.raw);
-
-    const linkedRequest = await prisma.telegramlinkrequest.findUnique({
-      where: { id: telegramRequestId },
-    });
-    if (linkedRequest?.status !== "ACTIVE" || !linkedRequest?.confirmedAt)
-      throw new Error("Status pengajuan tidak ACTIVE setelah konfirmasi");
-    console.log("9. verifikasi admin + konfirmasi kontak Telegram ok");
-
-    // Perintah bot
-    for (const command of [
-      "/status",
-      "/laporan",
-      `/cek ${report1.reportNumber}`,
-      "/lapor",
-      "/bantuan",
-    ]) {
-      r = await webhookUpdate(chatId, command);
-      if (r.status !== 200)
-        throw new Error(`Perintah ${command} gagal: ` + r.raw);
-    }
-    console.log("10. perintah bot /status /laporan /cek /lapor /bantuan ok");
-
-    // Toggle & unlink
-    r = await api("/api/telegram/link", wargaJar, {
-      method: "PATCH",
-      body: JSON.stringify({ enabled: false }),
-    });
-    if (r.status !== 200 || r.data.enabled !== false)
-      throw new Error("Toggle Telegram gagal: " + r.raw);
-
-    r = await api("/api/telegram/link", wargaJar);
-    if (r.data.enabled !== false) throw new Error("Enabled tidak berubah");
-
-    r = await api("/api/telegram/link", wargaJar, { method: "DELETE" });
-    if (r.status !== 200) throw new Error("Unlink gagal: " + r.raw);
-
-    r = await api("/api/telegram/link", wargaJar);
-    if (r.data.linked !== false) throw new Error("Masih tertaut setelah unlink");
-    console.log("11. toggle & putus tautan Telegram ok");
-
-    // Admin telegram & otorisasi
-    r = await api("/api/admin/telegram", adminJar);
-    if (r.status !== 200 || !r.data.counts)
-      throw new Error("Status admin Telegram gagal: " + r.raw);
-    if (typeof r.data.configured !== "boolean")
-      throw new Error("Field configured tidak valid: " + r.raw);
-    if (r.data.configured && !r.data.botUsername)
-      throw new Error("Bot terkonfigurasi tetapi username tidak tersedia");
-
-    r = await api("/api/admin/telegram", wargaJar);
-    if (r.status !== 403)
-      throw new Error("Non-admin seharusnya 403, dapat " + r.status);
-    console.log("12. status admin Telegram & otorisasi ok");
-
     // Alur verifikasi + penugasan tetap berjalan & notifikasi petugas dibuat
     const petugas = await prisma.user.findUnique({
       where: { email: PETUGAS.email },
@@ -585,7 +425,7 @@ async function main() {
     });
     if (!officerNotification)
       throw new Error("Notifikasi petugas tidak dibuat saat penugasan");
-    console.log("13. alur verifikasi/penugasan & notifikasi petugas ok");
+    console.log("8. alur verifikasi/penugasan & notifikasi petugas ok");
 
     await sleep(1200);
   } finally {
@@ -631,7 +471,7 @@ async function main() {
     });
 
     mock.server.close();
-    console.log("14. data uji dibersihkan & konfigurasi AI dipulihkan");
+    console.log("9. data uji dibersihkan & konfigurasi AI dipulihkan");
   }
 
   console.log("\nE2E PHASE 5 PASSED");

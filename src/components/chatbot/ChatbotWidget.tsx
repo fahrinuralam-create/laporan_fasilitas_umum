@@ -25,7 +25,7 @@ function greetingFor(name: string, role: string): string {
   if (role === "PETUGAS") {
     return `Halo, ${name}! Saya SiLapor, asisten Pelaporan Fasilitas. Saya bisa membantu dengan daftar tugas, cara memproses/menyelesaikan tugas, arti status, atau notifikasi.`;
   }
-  return `Halo, ${name}! Saya SiLapor, asisten Pelaporan Fasilitas. Tanyakan saja jumlah/status laporan Anda, cara membuat laporan, prioritas, notifikasi, atau Telegram.`;
+  return `Halo, ${name}! Saya SiLapor, asisten Pelaporan Fasilitas. Tanyakan saja jumlah/status laporan Anda, cara membuat laporan, prioritas, notifikasi, atau WhatsApp.`;
 }
 
 function suggestionsFor(role: string): string[] {
@@ -63,7 +63,7 @@ function suggestionsFor(role: string): string[] {
     "Kenapa laporan saya ditolak?",
     "Arti status",
     "Kategori apa saja?",
-    "Cara tautkan Telegram",
+    "Cara tautkan WhatsApp",
     "Siapa saya?",
   ];
 }

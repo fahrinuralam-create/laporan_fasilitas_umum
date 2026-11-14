@@ -287,11 +287,11 @@ async function main() {
     expectIncludes(r.data.reply, "otomatis", "Prioritas");
     console.log("10. penjelasan prioritas otomatis tersedia");
 
-    // 11. Telegram
-    r = await ask(wargaJar, "cara tautkan telegram");
-    expectIncludes(r.data.reply, "Pengaturan Telegram", "Telegram");
-    expectIncludes(r.data.reply, "Buat Kode Tautan", "Telegram");
-    console.log("11. panduan tautan Telegram tersedia");
+    // 11. WhatsApp
+    r = await ask(wargaJar, "cara tautkan whatsapp");
+    expectIncludes(r.data.reply, "Pengaturan WhatsApp", "WhatsApp");
+    expectIncludes(r.data.reply, "kode OTP", "WhatsApp");
+    console.log("11. panduan tautan WhatsApp tersedia");
 
     // 12. Notifikasi
     r = await ask(wargaJar, "notifikasi terbaru");

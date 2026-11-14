@@ -50,18 +50,21 @@ model aiconfigurationhistory {
 }
 
 model notification {
-  id             String    @id @default(cuid())
-  userId         String
-  reportId       String
-  title          String
-  message        String    @db.Text
-  isRead         Boolean   @default(false)
-  createdAt      DateTime  @default(now())
-  telegramError  String?   @db.Text
-  telegramSent   Boolean?  @default(false)
-  telegramSentAt DateTime?
-  report         report    @relation(fields: [reportId], references: [id], onDelete: Cascade, map: "Notification_reportId_fkey")
-  user           user      @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Notification_userId_fkey")
+  id                   String    @id @default(cuid())
+  userId               String
+  reportId             String
+  title                String
+  message              String    @db.Text
+  isRead               Boolean   @default(false)
+  createdAt            DateTime  @default(now())
+  whatsappError        String?   @db.Text
+  whatsappSent         Boolean   @default(false)
+  whatsappSentAt       DateTime?
+  whatsappAttempts     Int       @default(0)
+  whatsappProcessingAt DateTime?
+  whatsappMessageId    String?   @db.VarChar(100)
+  report               report    @relation(fields: [reportId], references: [id], onDelete: Cascade, map: "Notification_reportId_fkey")
+  user                 user      @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Notification_userId_fkey")
 
   @@index([reportId], map: "Notification_reportId_idx")
   @@index([userId], map: "Notification_userId_idx")
@@ -140,56 +143,36 @@ model reportimage {
   @@index([reportId], map: "ReportImage_reportId_idx")
 }
 
-model telegramlinktoken {
-  id        String    @id @default(cuid())
-  token     String    @unique(map: "TelegramLinkToken_token_key")
-  userId    String
-  expiresAt DateTime
-  usedAt    DateTime?
-  createdAt DateTime  @default(now())
-  phone     String?
-  user      user      @relation(fields: [userId], references: [id], onDelete: Cascade, map: "TelegramLinkToken_userId_fkey")
-
-  @@index([expiresAt], map: "TelegramLinkToken_expiresAt_idx")
-  @@index([phone], map: "TelegramLinkToken_phone_idx")
-  @@index([userId], map: "TelegramLinkToken_userId_idx")
-}
-
-// Pengajuan penautan Telegram dengan verifikasi admin/petugas.
-// Ditambahkan secara additive; tabel telegramlinktoken lama tetap dipertahankan.
-model telegramlinkrequest {
+// Pengajuan penautan WhatsApp dengan persetujuan admin dan verifikasi OTP.
+// Status persetujuan admin (PENDING_ADMIN) terpisah dari status verifikasi
+// kepemilikan nomor (PENDING_VERIFICATION -> ACTIVE).
+model whatsapplinkrequest {
   id                      String               @id @default(cuid())
   userId                  String
   phone                   String               @db.VarChar(32)
   phoneNormalized         String               @db.VarChar(32)
   previousPhoneNormalized String?              @db.VarChar(32)
   requestType             String               @default("INITIAL") @db.VarChar(20)
-  status                  telegram_link_status @default(PENDING_ADMIN)
-  telegramUserId          String?              @db.VarChar(32)
-  telegramChatId          String?              @db.VarChar(32)
-  telegramUsername        String?              @db.VarChar(191)
-  candidateTelegramUserId String?              @db.VarChar(32)
-  candidateTelegramChatId String?              @db.VarChar(32)
-  candidateUsername       String?              @db.VarChar(191)
-  confirmationStartedAt   DateTime?
-  tokenHash               String?              @unique(map: "TelegramLinkRequest_tokenHash_key") @db.VarChar(64)
-  tokenExpiresAt          DateTime?
-  tokenUsedAt             DateTime?
-  confirmedAt             DateTime?
+  status                  whatsapp_link_status @default(PENDING_ADMIN)
+  otpHash                 String?              @db.VarChar(64)
+  otpExpiresAt            DateTime?
+  otpUsedAt               DateTime?
+  otpAttempts             Int                  @default(0)
+  otpSentAt               DateTime?
+  otpSendError            String?              @db.Text
   reviewedById            String?
   reviewedAt              DateTime?
   rejectionReason         String?              @db.Text
   createdAt               DateTime             @default(now())
   updatedAt               DateTime             @updatedAt
-  user                    user                 @relation("TelegramLinkRequestUser", fields: [userId], references: [id], onDelete: Cascade, map: "TelegramLinkRequest_userId_fkey")
-  reviewedBy              user?                @relation("TelegramLinkRequestReviewer", fields: [reviewedById], references: [id], onDelete: SetNull, map: "TelegramLinkRequest_reviewedById_fkey")
+  user                    user                 @relation("WhatsAppLinkRequestUser", fields: [userId], references: [id], onDelete: Cascade, map: "WhatsAppLinkRequest_userId_fkey")
+  reviewedBy              user?                @relation("WhatsAppLinkRequestReviewer", fields: [reviewedById], references: [id], onDelete: SetNull, map: "WhatsAppLinkRequest_reviewedById_fkey")
 
-  @@index([userId], map: "TelegramLinkRequest_userId_idx")
-  @@index([status], map: "TelegramLinkRequest_status_idx")
-  @@index([phoneNormalized], map: "TelegramLinkRequest_phoneNormalized_idx")
-  @@index([telegramChatId], map: "TelegramLinkRequest_telegramChatId_idx")
-  @@index([createdAt], map: "TelegramLinkRequest_createdAt_idx")
-  @@index([reviewedById], map: "TelegramLinkRequest_reviewedById_idx")
+  @@index([userId], map: "WhatsAppLinkRequest_userId_idx")
+  @@index([status], map: "WhatsAppLinkRequest_status_idx")
+  @@index([phoneNormalized], map: "WhatsAppLinkRequest_phoneNormalized_idx")
+  @@index([createdAt], map: "WhatsAppLinkRequest_createdAt_idx")
+  @@index([reviewedById], map: "WhatsAppLinkRequest_reviewedById_idx")
 }
 
 model user {
@@ -202,18 +185,17 @@ model user {
   address              String?               @db.Text
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
-  telegramChatId       String?               @unique(map: "User_telegramChatId_key")
-  telegramEnabled      Boolean               @default(true)
-  telegramLinkedAt     DateTime?
-  telegramUsername     String?
+  whatsappNumber       String?               @unique(map: "User_whatsappNumber_key") @db.VarChar(32)
+  whatsappEnabled      Boolean               @default(true)
+  whatsappLinkedAt     DateTime?
+  whatsappVerifiedAt   DateTime?
   phoneNormalized      String?               @unique(map: "User_phoneNormalized_key")
   notification         notification[]
   reportsAssigned      report[]              @relation("ReportOfficer")
   reportsReported      report[]              @relation("ReportReporter")
   reporthistory        reporthistory[]
-  telegramlinktoken    telegramlinktoken[]
-  telegramLinkRequests telegramlinkrequest[] @relation("TelegramLinkRequestUser")
-  telegramLinkReviews  telegramlinkrequest[] @relation("TelegramLinkRequestReviewer")
+  whatsappLinkRequests whatsapplinkrequest[] @relation("WhatsAppLinkRequestUser")
+  whatsappLinkReviews  whatsapplinkrequest[] @relation("WhatsAppLinkRequestReviewer")
 
   @@index([email], map: "User_email_idx")
 }
@@ -256,9 +238,9 @@ enum user_role {
   MASYARAKAT
 }
 
-enum telegram_link_status {
+enum whatsapp_link_status {
   PENDING_ADMIN
-  PENDING_TELEGRAM
+  PENDING_VERIFICATION
   ACTIVE
   REJECTED
   REVOKED

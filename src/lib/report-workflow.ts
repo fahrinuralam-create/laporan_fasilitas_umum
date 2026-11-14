@@ -1,6 +1,6 @@
 import { Prisma, report_status } from "@prisma/client";
 import prisma from "@/lib/prisma";
-import { deliverTelegramNotification } from "@/lib/telegram-notify";
+import { deliverWhatsAppNotification } from "@/lib/whatsapp-notify";
 import { SYSTEM_ACTOR_NOTE_PREFIX } from "@/lib/report-utils";
 
 const AUTO_REJECTABLE_STATUSES: report_status[] = [
@@ -82,9 +82,9 @@ export async function autoRejectReport(input: AutoRejectInput): Promise<{
   });
 
   if (result.rejected && result.notificationId) {
-    void deliverTelegramNotification(result.notificationId).catch((error) => {
+    void deliverWhatsAppNotification(result.notificationId).catch((error) => {
       console.error(
-        "Gagal mengirim notifikasi Telegram penolakan otomatis:",
+        "Gagal mengirim notifikasi WhatsApp penolakan otomatis:",
         error
       );
     });
@@ -158,8 +158,8 @@ export async function transitionReport(input: TransitionInput) {
     return { updated, notificationId: notification.id };
   });
 
-  void deliverTelegramNotification(result.notificationId).catch((error) => {
-    console.error("Gagal mengirim notifikasi Telegram:", error);
+  void deliverWhatsAppNotification(result.notificationId).catch((error) => {
+    console.error("Gagal mengirim notifikasi WhatsApp:", error);
   });
 
   return result.updated;

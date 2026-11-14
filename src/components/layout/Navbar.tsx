@@ -13,22 +13,21 @@ function linksForRole(role?: string): NavLink[] {
       { href: "/admin/dashboard", label: "Dashboard" },
       { href: "/admin/laporan", label: "Kelola Laporan" },
       { href: "/admin/ai-config", label: "Konfigurasi AI" },
-      { href: "/admin/telegram", label: "Bot Telegram" },
-      { href: "/admin/telegram/verifikasi", label: "Verifikasi Telegram" },
+      { href: "/admin/whatsapp", label: "Notifikasi WhatsApp" },
+      { href: "/admin/whatsapp/verifikasi", label: "Verifikasi WhatsApp" },
     ];
   }
   if (role === "PETUGAS") {
     return [
       { href: "/petugas/dashboard", label: "Dashboard" },
       { href: "/petugas/tugas", label: "Tugas Saya" },
-      { href: "/petugas/telegram", label: "Verifikasi Telegram" },
     ];
   }
   return [
     { href: "/masyarakat/dashboard", label: "Dashboard" },
     { href: "/masyarakat/laporan", label: "Laporan Saya" },
     { href: "/masyarakat/notifikasi", label: "Notifikasi" },
-    { href: "/pengaturan/telegram", label: "Telegram" },
+    { href: "/pengaturan/whatsapp", label: "WhatsApp" },
   ];
 }
 

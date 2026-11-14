@@ -122,7 +122,7 @@ const STOPWORDS = new Set([
   "riwayat",
   "detail",
   "foto",
-  "telegram",
+  "whatsapp",
   "kategori",
   "prioritas",
   "status",
@@ -166,7 +166,7 @@ function roleLabel(role: ChatbotDbRole): string {
 
 function scopeLabel(role: ChatbotDbRole): string {
   if (role === "ADMIN") {
-    return "Admin dapat membaca SELURUH data sistem (semua laporan, semua pengguna, semua riwayat, semua notifikasi, konfigurasi AI, dan status Telegram).";
+    return "Admin dapat membaca SELURUH data sistem (semua laporan, semua pengguna, semua riwayat, semua notifikasi, konfigurasi AI, dan status WhatsApp).";
   }
   if (role === "PETUGAS") {
     return "Petugas hanya boleh membaca data laporan yang ditugaskan kepadanya, riwayat/foto laporan tersebut, notifikasi miliknya, serta statistik agregat sistem yang tidak memuat data pribadi pengguna lain.";
@@ -341,10 +341,10 @@ const userOverviewSelect = {
   address: true,
   createdAt: true,
   updatedAt: true,
-  telegramChatId: true,
-  telegramEnabled: true,
-  telegramUsername: true,
-  telegramLinkedAt: true,
+  whatsappNumber: true,
+  whatsappEnabled: true,
+  whatsappVerifiedAt: true,
+  whatsappLinkedAt: true,
   _count: {
     select: {
       reportsReported: true,
@@ -361,8 +361,8 @@ const notificationOverviewSelect = {
   message: true,
   isRead: true,
   createdAt: true,
-  telegramSent: true,
-  telegramSentAt: true,
+  whatsappSent: true,
+  whatsappSentAt: true,
   report: {
     select: {
       id: true,
@@ -386,9 +386,9 @@ const SCHEMA_TEXT = `SKEMA DATABASE APLIKASI PELAPORAN FASILITAS
 1. Tabel user (akun pengguna)
    - id, name, email (unik), role (ADMIN | PETUGAS | MASYARAKAT)
    - phone, address, createdAt, updatedAt
-   - telegramChatId, telegramUsername, telegramLinkedAt, telegramEnabled, phoneNormalized
+   - whatsappNumber, whatsappEnabled, whatsappVerifiedAt, whatsappLinkedAt, phoneNormalized
    - password TIDAK PERNAH dibaca atau ditampilkan oleh chatbot.
-   - Relasi: reportsReported (laporan yang dibuat), reportsAssigned (laporan yang ditugaskan), reporthistory, notification, telegramlinktoken.
+   - Relasi: reportsReported (laporan yang dibuat), reportsAssigned (laporan yang ditugaskan), reporthistory, notification, whatsappLinkRequests.
 
 2. Tabel report (laporan kerusakan fasilitas)
    - id, reportNumber (unik, format REP-YYYYMMDD-XXXX), title, description
@@ -410,10 +410,15 @@ const SCHEMA_TEXT = `SKEMA DATABASE APLIKASI PELAPORAN FASILITAS
    - aiDescription, aiImageAnalyzedAt, aiImageConfidence, aiIsRelevant, aiPossibleDamage, aiSeverity, aiImageMatchTitle, aiRejectionReason.
 
 5. Tabel notification (notifikasi in-app)
-   - id, userId, reportId, title, message, isRead, createdAt, telegramSent, telegramSentAt, telegramError.
+   - id, userId, reportId, title, message, isRead, createdAt
+   - whatsappSent, whatsappSentAt, whatsappError, whatsappAttempts, whatsappProcessingAt, whatsappMessageId.
 
-6. Tabel telegramlinktoken (kode tautan Telegram)
-   - id, token, userId, expiresAt, usedAt, createdAt, phone.
+6. Tabel whatsapplinkrequest (pengajuan penautan WhatsApp)
+   - id, userId, phone, phoneNormalized, previousPhoneNormalized, requestType
+   - status (PENDING_ADMIN | PENDING_VERIFICATION | ACTIVE | REJECTED | REVOKED | EXPIRED)
+   - otpHash (hash, bukan kode mentah), otpExpiresAt, otpUsedAt, otpAttempts, otpSentAt, otpSendError
+   - reviewedById, reviewedAt, rejectionReason, createdAt, updatedAt.
+   - Status persetujuan admin terpisah dari status verifikasi kepemilikan nomor.
 
 7. Tabel aiconfiguration & aiconfigurationhistory (konfigurasi AI)
    - provider, baseUrl, model teks/vision, status API key (masking/hash), updatedByEmail.
@@ -422,7 +427,7 @@ const SCHEMA_TEXT = `SKEMA DATABASE APLIKASI PELAPORAN FASILITAS
 RELASI PENTING:
 - user 1—N report (sebagai reporter dan assignedOfficer).
 - report 1—N reporthistory, report 1—N reportimage, report 1—N notification.
-- user 1—N notification, user 1—N telegramlinktoken.
+- user 1—N notification, user 1—N whatsapplinkrequest.
 
 STATUS LAPORAN:
 - DIAJUKAN: baru masuk, menunggu verifikasi admin.
@@ -576,10 +581,10 @@ function serializeUser(user: {
   address: string | null;
   createdAt: Date;
   updatedAt: Date;
-  telegramChatId: string | null;
-  telegramEnabled: boolean;
-  telegramUsername: string | null;
-  telegramLinkedAt: Date | null;
+  whatsappNumber: string | null;
+  whatsappEnabled: boolean;
+  whatsappVerifiedAt: Date | null;
+  whatsappLinkedAt: Date | null;
   _count: {
     reportsReported: number;
     reportsAssigned: number;
@@ -598,11 +603,11 @@ function serializeUser(user: {
     `  Laporan dibuat: ${user._count.reportsReported} | Laporan ditangani: ${
       user._count.reportsAssigned
     } | Notifikasi: ${user._count.notification} | Riwayat: ${user._count.reporthistory}`,
-    `  Telegram: ${user.telegramChatId ? "tertaut" : "belum tertaut"}${
-      user.telegramUsername ? ` (@${user.telegramUsername})` : ""
-    }${user.telegramEnabled ? "" : " | notifikasi dinonaktifkan"}${
-      user.telegramLinkedAt
-        ? ` | sejak ${formatDateTime(user.telegramLinkedAt)}`
+    `  WhatsApp: ${user.whatsappNumber ? `tertaut (${user.whatsappNumber})` : "belum tertaut"}${
+      user.whatsappEnabled ? "" : " | notifikasi dinonaktifkan"
+    }${user.whatsappVerifiedAt ? " | terverifikasi" : " | belum terverifikasi"}${
+      user.whatsappLinkedAt
+        ? ` | sejak ${formatDateTime(user.whatsappLinkedAt)}`
         : ""
     }`,
   ]
@@ -615,14 +620,14 @@ function serializeNotification(notification: {
   message: string;
   isRead: boolean;
   createdAt: Date;
-  telegramSent: boolean | null;
+  whatsappSent: boolean | null;
   report: { reportNumber: string; title: string; status: string } | null;
   user: { name: string | null; email: string | null; role: string } | null;
 }): string {
   return [
     `- ${notification.title}${notification.isRead ? "" : " (belum dibaca)"} | ${formatDateTime(
       notification.createdAt
-    )} | Telegram: ${notification.telegramSent ? "terkirim" : "belum/tidak"}`,
+    )} | WhatsApp: ${notification.whatsappSent ? "terkirim" : "belum/tidak"}`,
     `  Pesan: ${compact(notification.message, 300)}`,
     notification.report
       ? `  Laporan: ${notification.report.reportNumber} — ${notification.report.title} (${statusLabel(
@@ -726,9 +731,9 @@ export async function buildChatbotDatabaseContext(params: {
     notifications,
     aiConfig,
     aiHistory,
-    telegramTotal,
-    telegramActive,
-    telegramUsed,
+    whatsappTotal,
+    whatsappActive,
+    whatsappPending,
     todayCount,
     weekCount,
     monthCount,
@@ -772,14 +777,14 @@ export async function buildChatbotDatabaseContext(params: {
         }),
     role === "ADMIN" ? getAiConfigAdminView() : Promise.resolve(null),
     role === "ADMIN" ? getAiConfigHistoryView(5) : Promise.resolve([]),
-    role === "ADMIN" ? prisma.telegramlinktoken.count() : Promise.resolve(0),
+    role === "ADMIN" ? prisma.whatsapplinkrequest.count() : Promise.resolve(0),
     role === "ADMIN"
-      ? prisma.telegramlinktoken.count({
-          where: { usedAt: null, expiresAt: { gt: now } },
-        })
+      ? prisma.whatsapplinkrequest.count({ where: { status: "ACTIVE" } })
       : Promise.resolve(0),
     role === "ADMIN"
-      ? prisma.telegramlinktoken.count({ where: { usedAt: { not: null } } })
+      ? prisma.whatsapplinkrequest.count({
+          where: { status: { in: ["PENDING_ADMIN", "PENDING_VERIFICATION"] } },
+        })
       : Promise.resolve(0),
     prisma.report.count({ where: { createdAt: { gte: windows.today } } }),
     prisma.report.count({ where: { createdAt: { gte: windows.week } } }),
@@ -923,7 +928,7 @@ export async function buildChatbotDatabaseContext(params: {
       }`,
       `Notifikasi tersimpan: ${globalNotifications}`,
       role === "ADMIN"
-        ? `Kode tautan Telegram: total=${telegramTotal}, aktif=${telegramActive}, sudah dipakai=${telegramUsed}`
+        ? `Pengajuan WhatsApp: total=${whatsappTotal}, aktif=${whatsappActive}, menunggu=${whatsappPending}`
         : "",
       `Data dalam cakupan pengguna ini: ${scopedReports} laporan.`,
     ]
@@ -1043,7 +1048,7 @@ export const CHATBOT_DATABASE_TOOL: ChatTool = {
   function: {
     name: "query_database",
     description:
-      "Membaca data langsung dari database aplikasi Pelaporan Fasilitas. Gunakan untuk mencari laporan, detail laporan, pengguna, riwayat, foto, notifikasi, statistik, konfigurasi AI, status Telegram, atau skema database. Hak akses peran selalu diterapkan oleh server. Jangan mengarang data jika tool mengembalikan kosong.",
+      "Membaca data langsung dari database aplikasi Pelaporan Fasilitas. Gunakan untuk mencari laporan, detail laporan, pengguna, riwayat, foto, notifikasi, statistik, konfigurasi AI, status WhatsApp, atau skema database. Hak akses peran selalu diterapkan oleh server. Jangan mengarang data jika tool mengembalikan kosong.",
     parameters: {
       type: "object",
       properties: {
@@ -1057,12 +1062,12 @@ export const CHATBOT_DATABASE_TOOL: ChatTool = {
             "notifications",
             "statistics",
             "ai_config",
-            "telegram",
+            "whatsapp",
             "schema",
             "summary",
           ],
           description:
-            "Jenis data yang dibaca: reports (cari/daftar laporan), report_detail (satu laporan lengkap dengan riwayat/foto), users (daftar pengguna, admin), user_detail (profil + laporan + notifikasi pengguna), notifications, statistics, ai_config (admin), telegram, schema, summary.",
+            "Jenis data yang dibaca: reports (cari/daftar laporan), report_detail (satu laporan lengkap dengan riwayat/foto), users (daftar pengguna, admin), user_detail (profil + laporan + notifikasi pengguna), notifications, statistics, ai_config (admin), whatsapp, schema, summary.",
         },
         search: {
           type: "string",
@@ -1363,10 +1368,10 @@ async function executeUsersQuery(
       address: item.address,
       createdAt: item.createdAt.toISOString(),
       updatedAt: item.updatedAt.toISOString(),
-      telegramLinked: Boolean(item.telegramChatId),
-      telegramUsername: item.telegramUsername,
-      telegramEnabled: item.telegramEnabled,
-      telegramLinkedAt: item.telegramLinkedAt?.toISOString() ?? null,
+      whatsappNumber: item.whatsappNumber,
+      whatsappEnabled: item.whatsappEnabled,
+      whatsappVerifiedAt: item.whatsappVerifiedAt?.toISOString() ?? null,
+      whatsappLinkedAt: item.whatsappLinkedAt?.toISOString() ?? null,
       reportCount: item._count.reportsReported,
       assignedCount: item._count.reportsAssigned,
       notificationCount: item._count.notification,
@@ -1437,10 +1442,10 @@ async function executeUserDetailQuery(
       phone: target.phone,
       address: target.address,
       createdAt: target.createdAt.toISOString(),
-      telegramLinked: Boolean(target.telegramChatId),
-      telegramUsername: target.telegramUsername,
-      telegramEnabled: target.telegramEnabled,
-      telegramLinkedAt: target.telegramLinkedAt?.toISOString() ?? null,
+      whatsappNumber: target.whatsappNumber,
+      whatsappEnabled: target.whatsappEnabled,
+      whatsappVerifiedAt: target.whatsappVerifiedAt?.toISOString() ?? null,
+      whatsappLinkedAt: target.whatsappLinkedAt?.toISOString() ?? null,
       reportCount: target._count.reportsReported,
       assignedCount: target._count.reportsAssigned,
       notificationCount: target._count.notification,
@@ -1455,7 +1460,7 @@ async function executeUserDetailQuery(
       reportNumber: item.report?.reportNumber ?? null,
       reportTitle: item.report?.title ?? null,
       reportStatus: item.report ? statusLabel(item.report.status) : null,
-      telegramSent: item.telegramSent,
+      whatsappSent: item.whatsappSent,
     })),
   };
 }
@@ -1516,8 +1521,8 @@ async function executeNotificationsQuery(
       message: item.message,
       isRead: item.isRead,
       createdAt: item.createdAt.toISOString(),
-      telegramSent: item.telegramSent,
-      telegramSentAt: item.telegramSentAt?.toISOString() ?? null,
+      whatsappSent: item.whatsappSent,
+      whatsappSentAt: item.whatsappSentAt?.toISOString() ?? null,
       reportNumber: item.report.reportNumber,
       reportTitle: item.report.title,
       reportStatus: statusLabel(item.report.status),
@@ -1674,30 +1679,32 @@ async function executeStatisticsQuery(
   };
 }
 
-async function executeTelegramQuery(
+async function executeWhatsAppQuery(
   user: ChatbotDbUser,
   input: Record<string, unknown>
 ): Promise<Record<string, unknown>> {
   const role = roleOf(user.role);
-  const now = new Date();
   const limit = readLimit(input.limit, 20);
 
   if (role === "ADMIN") {
-    const [total, active, used, tokens] = await Promise.all([
-      prisma.telegramlinktoken.count(),
-      prisma.telegramlinktoken.count({
-        where: { usedAt: null, expiresAt: { gt: now } },
+    const [total, active, pending, requests] = await Promise.all([
+      prisma.whatsapplinkrequest.count(),
+      prisma.whatsapplinkrequest.count({ where: { status: "ACTIVE" } }),
+      prisma.whatsapplinkrequest.count({
+        where: { status: { in: ["PENDING_ADMIN", "PENDING_VERIFICATION"] } },
       }),
-      prisma.telegramlinktoken.count({ where: { usedAt: { not: null } } }),
-      prisma.telegramlinktoken.findMany({
+      prisma.whatsapplinkrequest.findMany({
         orderBy: { createdAt: "desc" },
         take: limit,
         select: {
-          token: true,
-          createdAt: true,
-          expiresAt: true,
-          usedAt: true,
+          id: true,
           phone: true,
+          requestType: true,
+          status: true,
+          createdAt: true,
+          reviewedAt: true,
+          otpSentAt: true,
+          otpAttempts: true,
           user: { select: { name: true, email: true, role: true } },
         },
       }),
@@ -1705,44 +1712,45 @@ async function executeTelegramQuery(
 
     return {
       ok: true,
-      entity: "telegram",
+      entity: "whatsapp",
       total,
       active,
-      used,
-      expired: Math.max(0, total - active - used),
-      tokens: tokens.map((item) => ({
-        token:
-          item.token.length > 8
-            ? `${item.token.slice(0, 4)}…${item.token.slice(-4)}`
-            : "…",
+      pending,
+      requests: requests.map((item) => ({
+        id: item.id,
         user: item.user.name || item.user.email,
         role: roleLabel(roleOf(item.user.role)),
         phone: item.phone,
+        requestType: item.requestType,
+        status: item.status,
         createdAt: item.createdAt.toISOString(),
-        expiresAt: item.expiresAt.toISOString(),
-        usedAt: item.usedAt?.toISOString() ?? null,
+        reviewedAt: item.reviewedAt?.toISOString() ?? null,
+        otpSentAt: item.otpSentAt?.toISOString() ?? null,
+        otpAttempts: item.otpAttempts,
       })),
     };
   }
 
-  const [total, active, used] = await Promise.all([
-    prisma.telegramlinktoken.count({ where: { userId: user.id } }),
-    prisma.telegramlinktoken.count({
-      where: { userId: user.id, usedAt: null, expiresAt: { gt: now } },
+  const [total, active, pending] = await Promise.all([
+    prisma.whatsapplinkrequest.count({ where: { userId: user.id } }),
+    prisma.whatsapplinkrequest.count({
+      where: { userId: user.id, status: "ACTIVE" },
     }),
-    prisma.telegramlinktoken.count({
-      where: { userId: user.id, usedAt: { not: null } },
+    prisma.whatsapplinkrequest.count({
+      where: {
+        userId: user.id,
+        status: { in: ["PENDING_ADMIN", "PENDING_VERIFICATION"] },
+      },
     }),
   ]);
 
   return {
     ok: true,
-    entity: "telegram",
+    entity: "whatsapp",
     total,
     active,
-    used,
-    expired: Math.max(0, total - active - used),
-    note: "Hanya kode tautan milik pengguna ini yang dihitung.",
+    pending,
+    note: "Hanya pengajuan WhatsApp milik pengguna ini yang dihitung.",
   };
 }
 
@@ -1800,8 +1808,8 @@ export async function executeChatbotDatabaseQuery(
           config: await getAiConfigAdminView(),
           history: await getAiConfigHistoryView(10),
         };
-      case "telegram":
-        return await executeTelegramQuery(user, input);
+      case "whatsapp":
+        return await executeWhatsAppQuery(user, input);
       case "schema":
         return { ok: true, entity: "schema", schema: SCHEMA_TEXT };
       case "summary":
@@ -1809,7 +1817,7 @@ export async function executeChatbotDatabaseQuery(
       default:
         return {
           ok: false,
-          error: `Entity tidak dikenal: ${entity || "(kosong)"}. Gunakan salah satu: reports, report_detail, users, user_detail, notifications, statistics, ai_config, telegram, schema, summary.`,
+          error: `Entity tidak dikenal: ${entity || "(kosong)"}. Gunakan salah satu: reports, report_detail, users, user_detail, notifications, statistics, ai_config, whatsapp, schema, summary.`,
         };
     }
   } catch (error) {
