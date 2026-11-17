@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireUser } from "@/lib/api-auth";
+import { canViewReport } from "@/lib/report-access";
 
 export async function GET(
   _request: Request,
@@ -29,11 +30,7 @@ export async function GET(
     return NextResponse.json({ error: "Laporan tidak ditemukan" }, { status: 404 });
   }
 
-  const isOwner = report.reporterId === user.id;
-  const isAssignedOfficer = report.assignedOfficerId === user.id;
-  const isAdmin = user.role === "ADMIN";
-
-  if (!isOwner && !isAssignedOfficer && !isAdmin) {
+  if (!canViewReport(user, report)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

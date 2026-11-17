@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
+import { canViewReport } from "@/lib/report-access";
 import {
   categoryLabel,
   cleanHistoryNotes,
@@ -40,9 +41,7 @@ export default async function LaporanDetailPage({
 
   if (!report) notFound();
 
-  const isOwner = report.reporterId === user.id;
-  const isPrivileged = user.role === "ADMIN" || user.role === "PETUGAS";
-  if (!isOwner && !isPrivileged) notFound();
+  if (!canViewReport(user, report)) notFound();
 
   const beforeImages = report.reportimage.filter((img) => img.type === "BEFORE");
   const afterImages = report.reportimage.filter((img) => img.type === "AFTER");
