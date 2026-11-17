@@ -6,8 +6,28 @@ Aplikasi ini menghubungkan masyarakat (pelapor), petugas (penindak lanjut), dan 
 (verifikator) dalam satu alur kerja, dilengkapi analisis AI, notifikasi WhatsApp, dan
 chatbot in-app **SiLapor**.
 
+## Identitas Mahasiswa dan Proyek
+
+| Keterangan | Informasi |
+|---|---|
+| Nama | Fahri Nur Alam |
+| NIM | 41257102 |
+| Kelompok | RPL-01 |
+| Tema Topik Kelompok | Smart City & Civic Technology |
+| Topik Proyek | Sistem Pelaporan Fasilitas Umum Berbasis Artificial Intelligence |
+
+## Video Final Demo
+
+Tautan video demo final:
+
+<https://youtu.be/FI-Z3Ff0Zvk>
+
+
+
 ## Daftar Isi
 
+- [Identitas Mahasiswa dan Proyek](#identitas-mahasiswa-dan-proyek)
+- [Video Final Demo](#video-final-demo)
 - [Fitur](#fitur)
 - [Prasyarat](#prasyarat)
 - [Menjalankan](#menjalankan)
@@ -281,10 +301,11 @@ npm run test:coverage
 | `src/test/phone.test.ts` | Normalisasi & validasi nomor telepon |
 | `src/test/ai-config-crypto.test.ts` | Enkripsi/dekripsi, hash, dan masking API key |
 | `src/test/fonnte.test.ts` | Konfigurasi Fonnte, penyusunan permintaan, sanitasi pesan error |
-| `src/test/ai-client.test.ts` | `extractJson` — pembersihan & parsing respons model |
+| `src/test/ai-client.test.ts` | `extractJson` (parsing respons model) dan klasifikasi pesan error provider AI (`summarizeProviderError`) |
 | `src/test/whatsapp-otp.test.ts` | Hash & verifikasi OTP, termasuk perilaku secret saat modul dimuat |
 | `src/test/report-validation.test.ts` | Validasi input laporan: pesan, urutan, dan normalisasi nilai |
 | `src/test/api-auth.test.ts` | Helper `requireUser` / `requireRole` |
+| `src/test/report-access.test.ts` | Otorisasi akses laporan (`canViewReport`): pemilik, petugas yang ditugaskan, dan admin |
 | `src/test/dashboard-colors.test.ts` | Pemetaan warna status pada dashboard |
 | `src/test/auth-contracts.test.ts` | Kontrak 401/403 per kelompok route |
 | `src/test/reports-route.test.ts` | Kontrak `POST /api/reports`: validasi, default, retry nomor laporan, bentuk respons |
