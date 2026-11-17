@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateChatbotReply, type ChatbotHistoryItem } from "@/lib/chatbot";
-import { getCurrentUser } from "@/lib/session";
+import { requireUser } from "@/lib/api-auth";
 
 // AI dengan tool database dapat membutuhkan beberapa panggilan provider.
 export const maxDuration = 60;
@@ -23,10 +23,9 @@ function isRateLimited(userId: string): boolean {
 }
 
 export async function POST(request: NextRequest) {
-  const user = await getCurrentUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireUser();
+  if (!auth.user) return auth.response;
+  const user = auth.user;
 
   if (isRateLimited(user.id)) {
     return NextResponse.json(

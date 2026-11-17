@@ -41,7 +41,7 @@ export default function LoginPage() {
         router.push("/masyarakat/dashboard");
       }
       router.refresh();
-    } catch (err) {
+    } catch {
       setError("Terjadi kesalahan saat login");
       setLoading(false);
     }

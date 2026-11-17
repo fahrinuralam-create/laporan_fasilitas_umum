@@ -1,21 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/session";
-import {
-  buildReportNumber,
-  inferPriority,
-  REPORT_CATEGORIES,
-} from "@/lib/report-utils";
+import { requireUser } from "@/lib/api-auth";
+import { buildReportNumber, inferPriority } from "@/lib/report-utils";
+import { validateReportInput } from "@/lib/report-validation";
 import { analyzeReportById } from "@/lib/report-ai";
 import { deliverWhatsAppNotification } from "@/lib/whatsapp-notify";
 
-const CATEGORY_VALUES = REPORT_CATEGORIES.map((c) => c.value);
-
 export async function GET() {
-  const user = await getCurrentUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireUser();
+  if (!auth.user) return auth.response;
+  const user = auth.user;
 
   const where =
     user.role === "ADMIN"
@@ -42,10 +36,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const user = await getCurrentUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireUser();
+  if (!auth.user) return auth.response;
+  const user = auth.user;
 
   let body: Record<string, unknown>;
   try {
@@ -54,39 +47,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Body tidak valid" }, { status: 400 });
   }
 
-  const title = String(body.title ?? "").trim();
-  const description = String(body.description ?? "").trim();
-  const category = String(body.category ?? "");
-  const address = body.address ? String(body.address).trim() : null;
-  const imageDataUrl = body.imageDataUrl ? String(body.imageDataUrl) : null;
-
-  const latitude =
-    body.latitude !== undefined && body.latitude !== null && body.latitude !== ""
-      ? Number(body.latitude)
-      : null;
-  const longitude =
-    body.longitude !== undefined &&
-    body.longitude !== null &&
-    body.longitude !== ""
-      ? Number(body.longitude)
-      : null;
-
-  const errors: string[] = [];
-  if (!title) errors.push("Judul wajib diisi");
-  if (title.length > 190) errors.push("Judul maksimal 190 karakter");
-  if (!description) errors.push("Deskripsi wajib diisi");
-  if (!CATEGORY_VALUES.includes(category as never))
-    errors.push("Kategori tidak valid");
-  if (latitude !== null && Number.isNaN(latitude))
-    errors.push("Latitude tidak valid");
-  if (longitude !== null && Number.isNaN(longitude))
-    errors.push("Longitude tidak valid");
-  if (imageDataUrl && imageDataUrl.length > 4_000_000)
-    errors.push("Ukuran gambar terlalu besar");
-
-  if (errors.length > 0) {
-    return NextResponse.json({ error: errors.join(", ") }, { status: 400 });
+  const validation = validateReportInput(body);
+  if (!validation.ok) {
+    return NextResponse.json(
+      { error: validation.errors.join(", ") },
+      { status: 400 }
+    );
   }
+
+  const { title, description, category, address, imageDataUrl, latitude, longitude } =
+    validation.data;
 
   // Prioritas ditentukan otomatis oleh sistem (rule-based), lalu dapat
   // disempurnakan oleh analisis AI setelah laporan dibuat.

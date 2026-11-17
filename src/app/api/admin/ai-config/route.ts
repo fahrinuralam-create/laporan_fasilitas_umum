@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/session";
+import { requireRole } from "@/lib/api-auth";
 import {
   getAiConfigAdminView,
   updateAiConfig,
@@ -16,26 +16,17 @@ function isValidUrl(value: string): boolean {
 }
 
 export async function GET() {
-  const user = await getCurrentUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  if (user.role !== "ADMIN") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const auth = await requireRole("ADMIN");
+  if (!auth.user) return auth.response;
 
   const view = await getAiConfigAdminView();
   return NextResponse.json(view);
 }
 
 export async function PUT(request: NextRequest) {
-  const user = await getCurrentUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  if (user.role !== "ADMIN") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const auth = await requireRole("ADMIN");
+  if (!auth.user) return auth.response;
+  const user = auth.user;
 
   let body: Record<string, unknown>;
   try {

@@ -1,26 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/session";
+import { requireRole } from "@/lib/api-auth";
 import { getFonnteConfig, sendWhatsAppMessage } from "@/lib/fonnte";
 
-async function requireAdmin() {
-  const user = await getCurrentUser();
-  if (!user) {
-    return {
-      error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
-    };
-  }
-  if (user.role !== "ADMIN") {
-    return {
-      error: NextResponse.json({ error: "Forbidden" }, { status: 403 }),
-    };
-  }
-  return { user };
-}
-
 export async function GET() {
-  const auth = await requireAdmin();
-  if (auth.error) return auth.error;
+  const auth = await requireRole("ADMIN");
+  if (!auth.user) return auth.response;
 
   const [
     verifiedUsers,
@@ -67,8 +52,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await requireAdmin();
-  if (auth.error) return auth.error;
+  const auth = await requireRole("ADMIN");
+  if (!auth.user) return auth.response;
+  const user = auth.user;
 
   let body: Record<string, unknown>;
   try {
@@ -92,7 +78,7 @@ export async function POST(request: NextRequest) {
         ? body.phone.trim()
         : (
             await prisma.user.findUnique({
-              where: { id: auth.user.id },
+              where: { id: user.id },
               select: { whatsappNumber: true },
             })
           )?.whatsappNumber;

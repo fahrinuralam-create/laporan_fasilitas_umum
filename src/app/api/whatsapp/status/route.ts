@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/session";
+import { requireRole } from "@/lib/api-auth";
 import {
   getWhatsAppLinkStatus,
   revokeWhatsAppLink,
@@ -7,16 +7,12 @@ import {
 } from "@/lib/whatsapp-link";
 
 export async function GET() {
-  const sessionUser = await getCurrentUser();
-  if (!sessionUser) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  if (sessionUser.role !== "MASYARAKAT") {
-    return NextResponse.json(
-      { error: "Fitur WhatsApp hanya tersedia untuk masyarakat." },
-      { status: 403 }
-    );
-  }
+  const auth = await requireRole(
+    "MASYARAKAT",
+    "Fitur WhatsApp hanya tersedia untuk masyarakat."
+  );
+  if (!auth.user) return auth.response;
+  const sessionUser = auth.user;
 
   const status = await getWhatsAppLinkStatus(sessionUser.id);
   if (!status) {
@@ -30,16 +26,12 @@ export async function GET() {
 }
 
 export async function PATCH(request: NextRequest) {
-  const sessionUser = await getCurrentUser();
-  if (!sessionUser) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  if (sessionUser.role !== "MASYARAKAT") {
-    return NextResponse.json(
-      { error: "Fitur WhatsApp hanya tersedia untuk masyarakat." },
-      { status: 403 }
-    );
-  }
+  const auth = await requireRole(
+    "MASYARAKAT",
+    "Fitur WhatsApp hanya tersedia untuk masyarakat."
+  );
+  if (!auth.user) return auth.response;
+  const sessionUser = auth.user;
 
   let body: Record<string, unknown>;
   try {
@@ -61,16 +53,12 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function DELETE() {
-  const sessionUser = await getCurrentUser();
-  if (!sessionUser) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  if (sessionUser.role !== "MASYARAKAT") {
-    return NextResponse.json(
-      { error: "Fitur WhatsApp hanya tersedia untuk masyarakat." },
-      { status: 403 }
-    );
-  }
+  const auth = await requireRole(
+    "MASYARAKAT",
+    "Fitur WhatsApp hanya tersedia untuk masyarakat."
+  );
+  if (!auth.user) return auth.response;
+  const sessionUser = auth.user;
 
   await revokeWhatsAppLink(sessionUser.id);
 

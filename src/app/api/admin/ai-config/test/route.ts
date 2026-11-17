@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/session";
+import { requireRole } from "@/lib/api-auth";
 import { getResolvedAiConfig } from "@/lib/ai-config";
 
 function isValidUrl(value: string): boolean {
@@ -12,13 +12,8 @@ function isValidUrl(value: string): boolean {
 }
 
 export async function POST(request: NextRequest) {
-  const user = await getCurrentUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  if (user.role !== "ADMIN") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const auth = await requireRole("ADMIN");
+  if (!auth.user) return auth.response;
 
   let body: Record<string, unknown> = {};
   try {

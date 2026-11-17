@@ -39,7 +39,7 @@ export default function RegisterPage() {
 
       setSuccess("Akun berhasil dibuat. Silakan masuk.");
       router.push("/login");
-    } catch (err) {
+    } catch {
       setError("Terjadi kesalahan saat pendaftaran");
       setLoading(false);
     }

@@ -50,11 +50,17 @@ export function ThemeProvider({
   // Saat pertama kali dimuat (client), baca preferensi dari localStorage.
   useEffect(() => {
     const stored = localStorage.getItem("pelaporan_theme") as Theme | null;
+    // localStorage hanya tersedia di client. Membacanya saat mount (bukan saat
+    // render) mencegah hydration mismatch antara server dan client.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setThemeState(stored ?? "system");
   }, []);
 
   // Saat state tema berubah (karena toggleTheme atau setTheme), terapkan ke DOM.
   useEffect(() => {
+    // applyTheme menyinkronkan state React ke class pada <html>, bukan derivasi
+    // state saat render.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     applyTheme(theme);
   }, [theme, applyTheme]);
 

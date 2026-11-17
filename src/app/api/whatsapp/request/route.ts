@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/session";
+import { requireRole } from "@/lib/api-auth";
 import {
   getWhatsAppLinkStatus,
   resubmitWhatsAppRequest,
@@ -24,16 +24,12 @@ function errorMessage(code: string): string {
 }
 
 export async function POST(request: NextRequest) {
-  const sessionUser = await getCurrentUser();
-  if (!sessionUser) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  if (sessionUser.role !== "MASYARAKAT") {
-    return NextResponse.json(
-      { error: "Fitur WhatsApp hanya tersedia untuk masyarakat." },
-      { status: 403 }
-    );
-  }
+  const auth = await requireRole(
+    "MASYARAKAT",
+    "Fitur WhatsApp hanya tersedia untuk masyarakat."
+  );
+  if (!auth.user) return auth.response;
+  const sessionUser = auth.user;
 
   let body: Record<string, unknown>;
   try {

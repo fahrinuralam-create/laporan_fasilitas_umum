@@ -36,6 +36,9 @@ export default function NotifikasiPage() {
   };
 
   useEffect(() => {
+    // `load` bersifat async; setState terjadi setelah await, bukan secara
+    // sinkron di dalam effect.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
   }, []);
 
