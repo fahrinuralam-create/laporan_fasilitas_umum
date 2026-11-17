@@ -10,7 +10,10 @@
     "postinstall": "prisma generate",
     "db:generate": "prisma generate",
     "db:studio": "prisma studio",
-    "db:check": "node scripts/db-check.cjs"
+    "db:check": "node scripts/db-check.cjs",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
@@ -22,14 +25,24 @@
     "react-dom": "19.2.8"
   },
   "devDependencies": {
+    "@rollup/wasm-node": "^4.68.5",
     "@tailwindcss/postcss": "^4",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitest/coverage-v8": "^3.2.4",
     "eslint": "^9",
     "eslint-config-next": "16.3.3",
+    "jsdom": "^31.0.1",
     "prisma": "^5.22.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
-  }
+    "typescript": "^5",
+    "vitest": "^3.2.4"
+  },
+ "overrides": {
+  "rollup": "npm:@rollup/wasm-node"
+
+}
 }
