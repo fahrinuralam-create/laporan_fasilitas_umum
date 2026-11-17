@@ -148,6 +148,62 @@ function normalizeToolCalls(value: unknown): ChatToolCall[] {
   return calls;
 }
 
+const CREDIT_MESSAGE =
+  "Kredit/kuota API provider AI habis. Isi ulang kredit atau ganti API key/provider di menu Admin > Konfigurasi AI.";
+const AUTH_MESSAGE =
+  "API key AI ditolak provider (tidak valid atau tidak memiliki akses). Periksa API key di menu Admin > Konfigurasi AI.";
+const RATE_LIMIT_MESSAGE =
+  "Permintaan ke provider AI terlalu sering (rate limit). Coba lagi beberapa saat lagi.";
+const NOT_FOUND_MESSAGE =
+  "Model AI atau base URL/endpoint tidak ditemukan pada provider. Periksa nama model dan base URL di menu Admin > Konfigurasi AI.";
+
+/**
+ * Penanda billing/kredit yang eksplisit. Kata "quota" saja tidak dipakai karena
+ * provider juga memakainya untuk rate limit maupun validasi parameter.
+ * Frasa "billing" harus spesifik: "billing endpoint unavailable" bukan tanda
+ * kredit habis, sedangkan "billing hard limit reached" adalah tanda kredit.
+ */
+function hasExplicitCreditSignal(text: string): boolean {
+  return (
+    text.includes("insufficient_quota") ||
+    text.includes("credit_balance_exhausted") ||
+    text.includes("billing_hard_limit_reached") ||
+    text.includes("credit balance") ||
+    text.includes("insufficient credit") ||
+    text.includes("no credit") ||
+    text.includes("out of credit") ||
+    text.includes("exceeded your current quota") ||
+    text.includes("billing hard limit reached") ||
+    text.includes("billing quota exceeded")
+  );
+}
+
+/**
+ * Mengubah respons error provider menjadi pesan yang ringkas dan bisa
+ * ditindaklanjuti admin. Pesan mentah provider sering berupa JSON panjang
+ * (mis. "insufficient_quota") sehingga sulit dipahami pengguna.
+ *
+ * Diekspor agar klasifikasi status dapat diuji tanpa memanggil provider.
+ */
+export function summarizeProviderError(status: number, body: string): string {
+  const text = (body || "").toLowerCase();
+
+  if (status === 402) return CREDIT_MESSAGE;
+
+  if (status === 401 || status === 403) return AUTH_MESSAGE;
+
+  if (status === 429) {
+    return hasExplicitCreditSignal(text) ? CREDIT_MESSAGE : RATE_LIMIT_MESSAGE;
+  }
+
+  if (status === 404) return NOT_FOUND_MESSAGE;
+
+  const excerpt = (body || "").trim().slice(0, 200);
+  return excerpt
+    ? `Provider AI menolak permintaan (HTTP ${status}): ${excerpt}`
+    : `Provider AI menolak permintaan (HTTP ${status}) tanpa detail dari provider.`;
+}
+
 async function callChatRaw(
   target: "text" | "vision",
   messages: ChatMessage[],
@@ -191,12 +247,7 @@ async function callChatRaw(
     typeof response.status === "number" &&
     (response.status < 200 || response.status >= 300)
   ) {
-    throw new Error(
-      `Provider AI menolak permintaan (HTTP ${response.status}): ${response.body.slice(
-        0,
-        300
-      )}`
-    );
+    throw new Error(summarizeProviderError(response.status, response.body));
   }
 
   let data: {
