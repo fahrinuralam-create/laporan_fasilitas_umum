@@ -1,0 +1,117 @@
+name: CI
+
+# Dijalankan untuk setiap push dan pull request pada branch mana pun, sehingga
+# branch fitur tetap tervalidasi sebelum pull request dibuat. `workflow_dispatch`
+# memungkinkan menjalankan ulang pipeline secara manual dari tab Actions.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+# Token hanya perlu membaca isi repository. Tidak ada akses tulis, paket,
+# maupun deployment.
+permissions:
+  contents: read
+
+# Push baru pada ref yang sama membatalkan eksekusi yang masih berjalan.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Nilai placeholder khusus CI.
+#
+# DATABASE_URL dibutuhkan Prisma agar schema dapat dimuat saat `prisma generate`
+# (postinstall) dan saat `next build` menginisialisasi PrismaClient. Host di
+# bawah adalah alamat loopback dengan kredensial fiktif: pipeline tidak pernah
+# membuka koneksi, menjalankan migrasi, atau menyentuh database sungguhan.
+#
+# NEXTAUTH_SECRET hanya harus "ada" agar modul konfigurasi NextAuth dapat dimuat
+# saat proses build. Nilainya bukan rahasia dan tidak dipakai di luar CI.
+#
+# Variabel lain (NVIDIA_*, FONNTE_*, AI_CONFIG_ENCRYPTION_KEY, dll.) dibaca
+# secara lazy saat runtime dan tidak dibutuhkan oleh keempat job di bawah.
+env:
+  DATABASE_URL: "mysql://ci_user:ci_password@127.0.0.1:3306/ci_placeholder"
+  NEXTAUTH_SECRET: "ci-placeholder-secret-not-used-anywhere-else"
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run TypeScript compiler
+        run: npx tsc --noEmit
+
+  test:
+    name: Unit Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm run test:run
+
+  build:
+    name: Production Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Next.js application
+        run: npm run build
